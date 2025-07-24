@@ -1,36 +1,17 @@
 import MicroUI
 
-ctx, renderer = MicroUI.create_context_with_buffer_renderer(200, 120)
+ctx, renderer = create_context_with_buffer_renderer()
 
-function render_frame()
-    MicroUI.clear!(renderer, MicroUI.mu_color(50, 50, 50, 255))
+mu_input_mousemove(ctx, 60, 70)
+mu_input_mousedown(ctx, 60, 70, 1)
 
-    MicroUI.mu_begin(ctx)
+mu_begin(ctx)
 
-    if MicroUI.mu_begin_window(ctx, "My Window", MicroUI.mu_rect(10, 10, 140, 86)) != 0
-        MicroUI.mu_layout_row(ctx, 2, [60, -1], 0)
-
-        MicroUI.mu_label(ctx, "First:")
-        if MicroUI.mu_button(ctx, "Button1") != 0
-            println("Button1 pressed")
-        end
-
-        MicroUI.mu_label(ctx, "Second:")
-        if MicroUI.mu_button(ctx, "Button2") != 0
-            MicroUI.mu_open_popup(ctx, "My Popup")
-        end
-
-        if MicroUI.mu_begin_popup(ctx, "My Popup") != 0
-            MicroUI.mu_label(ctx, "Hello world!")
-            MicroUI.mu_end_popup(ctx)
-        end
-
-        MicroUI.mu_end_window(ctx)
-    end
-
-    MicroUI.mu_end(ctx)
-    present!(renderer)
+mu_begin_window(ctx, "Ma Fenetre", 50, 50, 300, 150)
+mu_text(ctx, "Bonjour Julia UI")
+if mu_button(ctx, "Cliquez-moi")
+    println("Bouton cliqué !")
 end
+mu_end_window(ctx)
 
-render_frame()
-# save_buffer_as_ppm(renderer, "simpleWindow.ppm")
+mu_end(ctx)
