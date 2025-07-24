@@ -970,6 +970,129 @@ macro mu_button(ctx, label)
     :(mu_button_ex($ctx, $label, 0, Int(MU_OPT_ALIGNCENTER)))
 end
 
+# ===============================
+# Fenêtre principale (mu_begin_window_ex)
+# ===============================
+
+# Stubs utilitaires (à compléter selon ta logique)
+function get_container(ctx::Context, id::Id, opt::Int)
+    # À implémenter : retourne le container associé à l'id
+    for c in ctx.containers
+        if c.head !== nothing && c.head.id == id
+            return c
+        end
+    end
+    # Fallback : retourne le premier container ouvert
+    for c in ctx.containers
+        if c.open
+            return c
+        end
+    end
+    return nothing
+end
+
+function begin_root_container(ctx::Context, cnt)
+    # À implémenter : logique d'empilement du container racine
+    return nothing
+end
+
+function mu_update_control(ctx::Context, id::Id, rect::Rect, opt::Int)
+    # À implémenter : gestion du focus, hover, etc.
+    return nothing
+end
+
+function mu_push_clip_rect(ctx::Context, rect::Rect)
+    # À implémenter : gestion du clipping
+    return nothing
+end
+
+function push_container_body(ctx::Context, cnt, body::Rect, opt::Int)
+    # À implémenter : empile le body du container dans le layout
+    return nothing
+end
+
+function mu_begin_window(ctx::Context, title::String, rect::Rect, opt::Int=0)
+    body = Rect(rect.x, rect.y, rect.w, rect.h)
+    id = mu_get_id(ctx, title)
+    cnt = get_container(ctx, id, opt)
+    if cnt === nothing || !cnt.open
+        return 0
+    end
+    mu_push_id(ctx, title)
+
+    if cnt.rect.w == 0
+        cnt.rect = rect
+    end
+    begin_root_container(ctx, cnt)
+    rect = cnt.rect
+    body = cnt.rect
+
+    # draw frame
+    if (opt & Int(MU_OPT_NOFRAME)) == 0
+        ctx.draw_frame(ctx, rect, Int(MU_COLOR_WINDOWBG))
+    end
+
+    # do title bar
+    if (opt & Int(MU_OPT_NOTITLE)) == 0
+        tr = Rect(rect.x, rect.y, rect.w, ctx.style.title_height)
+        ctx.draw_frame(ctx, tr, Int(MU_COLOR_TITLEBG))
+
+        # do title text
+        if (opt & Int(MU_OPT_NOTITLE)) == 0
+            tid = mu_get_id(ctx, "!title")
+            mu_update_control(ctx, tid, tr, opt)
+            mu_draw_control_text(ctx, title, tr, Int(MU_COLOR_TITLETEXT), opt)
+            if tid == ctx.focus && ctx.mouse_down == Int(MU_MOUSE_LEFT)
+                cnt.rect.x += ctx.mouse_delta.x
+                cnt.rect.y += ctx.mouse_delta.y
+            end
+            body.y += tr.h
+            body.h -= tr.h
+        end
+
+        # do close button
+        if (opt & Int(MU_OPT_NOCLOSE)) == 0
+            cid = mu_get_id(ctx, "!close")
+            r = mu_rect(tr.x + tr.w - tr.h, tr.y, tr.h, tr.h)
+            tr.w -= r.w
+            mu_draw_icon(ctx, Int(MU_ICON_CLOSE), r, ctx.style.colors[Int(MU_COLOR_TITLETEXT)])
+            mu_update_control(ctx, cid, r, opt)
+            if ctx.mouse_pressed == Int(MU_MOUSE_LEFT) && cid == ctx.focus
+                cnt.open = false
+            end
+        end
+    end
+
+    push_container_body(ctx, cnt, body, opt)
+
+    # resize handle
+    if (opt & Int(MU_OPT_NORESIZE)) == 0
+        sz = ctx.style.title_height
+        rid = mu_get_id(ctx, "!resize")
+        r = mu_rect(rect.x + rect.w - sz, rect.y + rect.h - sz, sz, sz)
+        mu_update_control(ctx, rid, r, opt)
+        if rid == ctx.focus && ctx.mouse_down == Int(MU_MOUSE_LEFT)
+            cnt.rect.w = mu_max(96, cnt.rect.w + ctx.mouse_delta.x)
+            cnt.rect.h = mu_max(64, cnt.rect.h + ctx.mouse_delta.y)
+        end
+    end
+
+    # resize to content size
+    if (opt & Int(MU_OPT_AUTOSIZE)) != 0
+        r = get_layout(ctx).body
+        cnt.rect.w = cnt.content_size.x + (cnt.rect.w - r.w)
+        cnt.rect.h = cnt.content_size.y + (cnt.rect.h - r.h)
+    end
+
+    # close if popup and click elsewhere
+    if (opt & Int(MU_OPT_POPUP)) != 0 && ctx.mouse_pressed != 0 && ctx.hover_root !== cnt
+        cnt.open = false
+    end
+
+    mu_push_clip_rect(ctx, cnt.body)
+    return Int(MU_RES_ACTIVE)
+end
+
 # ============================================================================
 # FONCTIONS DE CONVENANCE ET EXEMPLES
 # ============================================================================
@@ -989,6 +1112,7 @@ end
 # Délégation des fonctions principales vers le contexte de base
 mu_begin(ctx::ContextWithRenderer) = mu_begin(ctx.base)
 mu_end(ctx::ContextWithRenderer) = mu_end(ctx.base)
+mu_begin_window(ctx::Context, title::String, rect::Rect) = mu_begin_window(ctx, title, rect, 0)
 mu_input_mousemove(ctx::ContextWithRenderer, x::Int, y::Int) = mu_input_mousemove(ctx.base, x, y)
 mu_input_mousedown(ctx::ContextWithRenderer, x::Int, y::Int, btn::Int) = mu_input_mousedown(ctx.base, x, y, btn)
 mu_input_mouseup(ctx::ContextWithRenderer, x::Int, y::Int, btn::Int) = mu_input_mouseup(ctx.base, x, y, btn)
