@@ -16,7 +16,7 @@ export mu_input_keydown, mu_input_keyup, mu_input_text
 export create_context_with_buffer_renderer, save_buffer_as_ppm
 
 # Constantes
-const MU_VERSION = "0.02"
+const MU_VERSION = "0.1.1"
 const MU_COMMANDLIST_SIZE = 256 * 1024
 const MU_ROOTLIST_SIZE = 32
 const MU_CONTAINERSTACK_SIZE = 32
