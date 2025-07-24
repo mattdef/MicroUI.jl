@@ -1,6 +1,16 @@
 import MicroUI
+import GLFW
 
 function getExemple()
+
+    # Crée une fenêtre GLFW
+    window = GLFW.CreateWindow(800, 600, "MicroUI with GLFW")
+    if window == C_NULL
+        error("Failed to create GLFW window")
+    end
+
+    GLFW.MakeContextCurrent(window)
+
     # Création du contexte et du renderer
     ctx, renderer = MicroUI.create_context_with_buffer_renderer(800, 600)
     MicroUI.mu_init(ctx)

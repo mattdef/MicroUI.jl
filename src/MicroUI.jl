@@ -34,6 +34,40 @@ mu_color(r::Integer, g::Integer, b::Integer, a::Integer) =
           UInt8(clamp(b, 0, 255)),
           UInt8(clamp(a, 0, 255)))
 
+# -----------------------------------------------------------------------------
+# Constantes
+# -----------------------------------------------------------------------------
+const MU_ICON_CLOSE = 1
+
+# -----------------------------------------------------------------------------
+# DÉFINITION DES COMMANDES DE DESSIN
+# (Équivalent aux structs mu_*Command dans microui.h)
+# -----------------------------------------------------------------------------
+
+abstract type AbstractCommand end
+
+struct RectCommand <: AbstractCommand
+    rect::Rect
+    color::Color
+end
+
+struct TextCommand <: AbstractCommand
+    pos::Vec2
+    font::Any # Le type de la police est laissé générique
+    color::Color
+    text::String
+end
+
+struct IconCommand <: AbstractCommand
+    rect::Rect
+    id::Int
+    color::Color
+end
+
+struct ClipCommand <: AbstractCommand
+    rect::Rect
+end
+
 
 # -----------------------------------------------------------------------------
 # Context & style minimal
@@ -62,6 +96,7 @@ end
 mutable struct Container
     title::String
     rect::Rect
+    body::Rect
     open::Bool
     cursor::Vec2
     row_mode::Bool
@@ -87,7 +122,12 @@ mutable struct Context
     input_buffer::String
     key_pressed::Union{Nothing, Symbol}
     cursor_blink::Int
+    command_list::Vector{AbstractCommand}
+    clip_stack::Vector{Rect}
+    last_mouse_pos::Vec2
+    mouse_delta::Vec2
 end
+
 
 # -----------------------------------------------------------------------------
 # Initialisation
@@ -153,11 +193,119 @@ function save_buffer_as_ppm(r::BufferRenderer, filename::String)
     println("[PPM] $filename saved")
 end
 
+
+# -----------------------------------------------------------------------------
+# 3. IMPLÉMENTATION DES FONCTIONS DE PORTAGE
+# -----------------------------------------------------------------------------
+
+# --- Fonctions utilitaires pour le clipping ---
+
+function intersect_rects(r1::Rect, r2::Rect)
+    x1 = max(r1.x, r2.x)
+    y1 = max(r1.y, r2.y)
+    x2 = min(r1.x + r1.w, r2.x + r2.w)
+    y2 = min(r1.y + r1.h, r2.y + r2.h)
+    return mu_rect(x1, y1, max(0, x2 - x1), max(0, y2 - y1))
+end
+
+mu_push_clip_rect(ctx::Context, rect::Rect) = push!(ctx.clip_stack, intersect_rects(rect, current_clip_rect(ctx)))
+mu_pop_clip_rect(ctx::Context) = length(ctx.clip_stack) > 1 && pop!(ctx.clip_stack)
+current_clip_rect(ctx::Context) = last(ctx.clip_stack)
+
+"""
+Équivalent de mu_push_command en C.
+Ajoute une commande à la liste de commandes du contexte.
+"""
+function mu_push_command(ctx::Context, cmd::AbstractCommand)
+    push!(ctx.command_list, cmd)
+end
+
+"""
+Portage de mu_draw_rect.
+Ajoute une commande pour dessiner un rectangle plein.
+Le rectangle est clippé par la zone de clipping actuelle.
+"""
+function mu_draw_rect(ctx::Context, rect::Rect, color::Color)
+    clipped_rect = intersect_rects(rect, current_clip_rect(ctx))
+    if clipped_rect.w > 0 && clipped_rect.h > 0
+        mu_push_command(ctx, RectCommand(clipped_rect, color))
+    end
+end
+
+"""
+Portage de mu_draw_box.
+Ajoute des commandes pour dessiner le contour d'un rectangle.
+"""
+function mu_draw_box(ctx::Context, rect::Rect, color::Color)
+    # Dessine les 4 côtés du rectangle avec une épaisseur de 1 pixel
+    mu_draw_rect(ctx, mu_rect(rect.x + 1, rect.y, rect.w - 2, 1), color) # Haut
+    mu_draw_rect(ctx, mu_rect(rect.x + 1, rect.y + rect.h - 1, rect.w - 2, 1), color) # Bas
+    mu_draw_rect(ctx, mu_rect(rect.x, rect.y, 1, rect.h), color) # Gauche
+    mu_draw_rect(ctx, mu_rect(rect.x + rect.w - 1, rect.y, 1, rect.h), color) # Droite
+end
+
+"""
+Portage de mu_draw_text.
+Ajoute une commande pour dessiner du texte.
+"""
+function mu_draw_text(ctx::Context, font::Any, text::String, pos::Vec2, color::Color)
+    # En C, le clipping est géré plus finement. Ici, on se contente d'ajouter la commande,
+    # le renderer devra gérer le clipping final. C'est une simplification idiomatique.
+    # Pour une fidélité parfaite, il faudrait vérifier le clipping ici.
+    mu_push_command(ctx, TextCommand(pos, font, color, text))
+end
+
+"""
+Portage de mu_draw_icon.
+Ajoute une commande pour dessiner une icône.
+"""
+function mu_draw_icon(ctx::Context, id::Int, rect::Rect, color::Color)
+    # Comme pour le texte, on ne vérifie pas le clipping ici par simplification.
+    # Le renderer s'en chargera.
+    mu_push_command(ctx, IconCommand(rect, id, color))
+end
+
+"""
+Portage de draw_frame en C.
+Dessine le fond et la bordure d'un contrôle ou d'une fenêtre.
+"""
+function draw_frame(ctx::Context, rect::Rect, colorid::Symbol)
+    # Dessine le fond du contrôle
+    mu_draw_rect(ctx, rect, ctx.style.colors[colorid])
+    
+    # Certains types n'ont pas de bordure
+    if colorid in (:titlebg, :scrollbase, :scrollthumb)
+        return
+    end
+    
+    # Dessine la bordure si la couleur de bordure est visible
+    border_color = ctx.style.colors[:border]
+    if border_color.a > 0
+        # `expand_rect` n'existe pas en C, mais c'est ce que fait `mu_draw_box`
+        # avec un rectangle agrandi de 1.
+        expanded_rect = mu_rect(rect.x - 1, rect.y - 1, rect.w + 2, rect.h + 2)
+        mu_draw_box(ctx, expanded_rect, border_color)
+    end
+end
+
+
 # -----------------------------------------------------------------------------
 # Création de contexte + renderer
 # -----------------------------------------------------------------------------
 function create_context_with_buffer_renderer(w=800, h=600)
-    ctx = Context(default_style(), nothing, mu_vec2(0,0), false, false, identity, identity, Dict(), nothing, 0, 0, 0, 1, "", nothing, 0)
+    # Rectangle "infini" pour le clipping initial, comme `unclipped_rect` en C
+    unclipped_rect = mu_rect(-1000000, -1000000, 2000000, 2000000)
+    
+    ctx = Context(
+        default_style(), nothing, mu_vec2(0,0), false, false,
+        identity, identity, Dict(), nothing, 0, 0, 0, 1, "", nothing, 0,
+        # -- Initialisation des nouveaux champs --
+        AbstractCommand[],         # Liste de commandes vide
+        [unclipped_rect],           # Pile de clipping avec la zone par défaut
+        mu_vec2(0,0), # last_mouse_pos
+        mu_vec2(0,0)  # mouse_delta
+    )
+    
     renderer = BufferRenderer(w, h)
     attach_renderer!(ctx, renderer)
     return ctx, renderer
@@ -171,31 +319,104 @@ function mu_begin(ctx::Context)
     ctx.current_window = nothing
     ctx.id_counter = 1
     ctx.cursor_blink += 1
+    # Calculer le delta de la souris depuis la dernière frame 
+    ctx.mouse_delta = mu_vec2(ctx.mouse_pos.x - ctx.last_mouse_pos.x, 
+                              ctx.mouse_pos.y - ctx.last_mouse_pos.y)
 end
 
 function mu_end(ctx::Context)
-    #ctx.active_id = ctx.mouse_down ? ctx.active_id : 0
     ctx.hot_id = 0
     present!(ctx.renderer)
+    ctx.last_mouse_pos = ctx.mouse_pos
 end
 
 # -----------------------------------------------------------------------------
 # Fenêtre + layout horizontal/vertical simple
 # -----------------------------------------------------------------------------
 function mu_begin_window(ctx::Context, title::String, x::Int=50, y::Int=50, w::Int=200, h::Int=100)
+    # Récupère ou crée le conteneur de la fenêtre [cite: 1, 11]
+    rect = mu_rect(x, y, w, h)
     container = get!(ctx.containers, title) do
-        Container(title, mu_rect(x, y, w, h), true,
-                  mu_vec2(x + ctx.style.padding, y + ctx.style.padding * 2 + ctx.style.size.y),
-                  false, 0, 0, 0)
+        Container(title, rect, mu_rect(0,0,0,0), true, mu_vec2(0,0), false, 0, 0, 0)
     end
-    container.cursor = mu_vec2(container.rect.x + ctx.style.padding,
-                               container.rect.y + ctx.style.padding * 2 + ctx.style.size.y)
-    container.row_mode = false
+    
+    # Si la fenêtre est fermée, ne rien faire
+    if !container.open
+        return false
+    end
+
     ctx.current_window = container
-    draw_rect!(ctx.renderer, container.rect, ctx.style.colors[:window])
-    titlebar = mu_rect(container.rect.x, container.rect.y, container.rect.w, ctx.style.size.y + ctx.style.padding * 2)
-    draw_rect!(ctx.renderer, titlebar, ctx.style.colors[:titlebg])
-    draw_text!(ctx.renderer, title, mu_vec2(titlebar.x + ctx.style.padding, titlebar.y + ctx.style.padding), ctx.style.colors[:titletext], ctx.style.font)
+    
+    # --- Dessin de la fenêtre (équivalent de MU_OPT_NOFRAME) ---
+    draw_frame(ctx, container.rect, :window) # :window correspond à MU_COLOR_WINDOWBG [cite: 1, 4]
+    
+    body = container.rect
+
+    # --- Barre de titre (équivalent de MU_OPT_NOTITLE) ---
+    title_height = ctx.style.size.y + ctx.style.padding * 2
+    tr = mu_rect(container.rect.x, container.rect.y, container.rect.w, title_height)
+    
+    # Dessine le fond de la barre de titre 
+    draw_frame(ctx, tr, :titlebg) # :titlebg correspond à MU_COLOR_TITLEBG [cite: 1, 4]
+
+    # Zone de contenu (body) est réduite par la hauteur de la barre de titre 
+    body = mu_rect(body.x, body.y + tr.h, body.w, body.h - tr.h)
+    
+    # Titre du texte
+    mu_draw_text(ctx, ctx.style.font, title, mu_vec2(tr.x + ctx.style.padding, tr.y + ctx.style.padding), ctx.style.colors[:titletext])
+    
+    # --- Gestion des interactions de la barre de titre (déplacement) ---
+    title_id = (ctx.id_counter += 1)
+    hovered = ctx.mouse_pos.x >= tr.x && ctx.mouse_pos.x <= tr.x + tr.w &&
+              ctx.mouse_pos.y >= tr.y && ctx.mouse_pos.y <= tr.y + tr.h
+
+    if hovered && !ctx.mouse_down
+        ctx.hot_id = title_id
+    end
+    if ctx.hot_id == title_id && ctx.mouse_pressed
+        ctx.active_id = title_id
+    end
+    
+    # Déplacer la fenêtre si la barre de titre est active (cliquée-glissée) 
+    if ctx.active_id == title_id && ctx.mouse_down
+        container.rect.x += ctx.mouse_delta.x
+        container.rect.y += ctx.mouse_delta.y
+    end
+
+    # --- Bouton de fermeture (équivalent de MU_OPT_NOCLOSE) ---
+    close_id = (ctx.id_counter += 1)
+    r_close = mu_rect(tr.x + tr.w - tr.h, tr.y, tr.h, tr.h) # Bouton carré 
+    tr.w -= r_close.w # Réduit la zone de la barre de titre pour ne pas chevaucher
+
+    # Dessine l'icône de fermeture 
+    mu_draw_icon(ctx, MU_ICON_CLOSE, r_close, ctx.style.colors[:titletext])
+
+    # Logique de clic sur le bouton de fermeture
+    hovered_close = ctx.mouse_pos.x >= r_close.x && ctx.mouse_pos.x <= r_close.x + r_close.w &&
+                    ctx.mouse_pos.y >= r_close.y && ctx.mouse_pos.y <= r_close.y + r_close.h
+    
+    if hovered_close && !ctx.mouse_down
+        ctx.hot_id = close_id
+    end
+    if ctx.hot_id == close_id && ctx.mouse_pressed
+        ctx.active_id = close_id
+    end
+
+    # Si le bouton est cliqué, on ferme la fenêtre 
+    if !ctx.mouse_down && ctx.hot_id == close_id && ctx.active_id == close_id
+        container.open = false
+    end
+    
+    # --- Finalisation ---
+    # Met à jour la géométrie du conteneur et prépare le layout
+    container.body = body # L'ancienne version n'avait pas ce champ
+    container.cursor = mu_vec2(container.rect.x + ctx.style.padding, 
+                               container.rect.y + title_height + ctx.style.padding)
+    
+    # Applique le clipping à la zone de contenu de la fenêtre 
+    mu_push_clip_rect(ctx, body)
+
+    return true # La fenêtre est ouverte et active
 end
 
 mu_end_window(ctx::Context) = (ctx.current_window = nothing)
@@ -361,17 +582,6 @@ end
 
 function mu_input_keyup(ctx::Context, key)
     ctx.key_pressed = nothing
-end
-
-# Ajouté au contexte pour capturer l'entrée texte
-function create_context_with_buffer_renderer(w=800, h=600)
-    ctx = Context(default_style(), nothing, mu_vec2(0,0), false, false, identity, identity, Dict(), nothing, 0, 0, 0, 1, "", nothing, 0)
-    ctx.input_buffer = ""
-    ctx.key_pressed = nothing
-    ctx.cursor_blink = 0
-    renderer = BufferRenderer(w, h)
-    attach_renderer!(ctx, renderer)
-    return ctx, renderer
 end
 
 end # module

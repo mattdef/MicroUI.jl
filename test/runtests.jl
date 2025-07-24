@@ -25,10 +25,16 @@ MicroUI.present!(r::MockRenderer) = push!(r.log, "present")
 
 # -- Helpers --
 function create_test_context()
+    unclipped_rect = mu_rect(-1000000, -1000000, 2000000, 2000000)
+
     ctx = MicroUI.Context(
         MicroUI.default_style(), nothing, MicroUI.mu_vec2(0,0),
         false, false, identity, identity, Dict(), nothing,
-        0, 0, 0, 1, "", nothing, 0
+        0, 0, 0, 1, "", nothing, 0,
+        MicroUI.AbstractCommand[],         # Liste de commandes vide
+        [unclipped_rect],           # Pile de clipping avec la zone par défaut
+        MicroUI.mu_vec2(0,0), # last_mouse_pos
+        MicroUI.mu_vec2(0,0)  # mouse_delta
     )
     ctx.input_buffer = ""
     ctx.key_pressed = nothing
