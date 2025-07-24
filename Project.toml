@@ -1,7 +1,7 @@
 name = "MicroUI"
 uuid = "8c0ede0a-6911-4ca7-83c4-4fa2fa689698"
 authors = ["Mattdef"]
-version = "0.1.1"
+version = "0.2.0"
 
 [compat]
 julia = "1.6.7"

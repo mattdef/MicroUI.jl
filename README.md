@@ -15,22 +15,13 @@ Port from [rxi/microui](https://github.com/rxi/microui)
 ## Example
 ![example](https://user-images.githubusercontent.com/3920290/75187058-2b598800-5741-11ea-9358-38caf59f8791.png)
 ```c
-ctx, renderer = create_context_with_buffer_renderer(140, 86)
-mu_begin(ctx)
 
+ASAP...
 
-
-mu_end(ctx)
 ```
 
 ## Screenshot
 ![screenshot](https://user-images.githubusercontent.com/3920290/75188642-63ae9580-5744-11ea-9eee-d753ff5c0aa7.png)
-
-[**Browser Demo**](https://floooh.github.io/sokol-html5/sgl-microui-sapp.html)
-
-## Usage
-* See [`doc/usage.md`](doc/usage.md) for usage instructions
-* See the [`demo`](demo) directory for a usage example
 
 ## Notes
 The library expects the user to provide input and handle the resultant drawing
