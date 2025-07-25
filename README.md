@@ -37,7 +37,42 @@ This library is free software; you can redistribute it and/or modify it under
 the terms of the MIT license. See [LICENSE](LICENSE) for details.
 
 ## Todo
+**1. ## Todo
 **1. Séparation logique/rendu**
+La logique d’UI et le rendu sontr trop reliés (ex : draw_rect! dans les contrôles).
+→ Pour faciliter le test et le portage, séparer la génération des commandes de dessin et leur exécution.
+
+**2. Gestion du focus et de l’input**
+Ajouter des helpers pour savoir si un contrôle a le focus ou est actif.
+Gérer le tab pour naviguer entre contrôles (accessibilité).
+
+**3. Gestion du layout**
+Le layout est très basique (row/col).
+→ Ajouter des helpers pour des layouts plus complexes (grille, auto-sizing, etc.).
+
+**4. Extensibilité**
+Les couleurs et styles sont codés en dur dans default_style.
+→ Permettre de charger des thèmes ou de personnaliser plus facilement.
+
+**5. Gestion des entrées**
+Les fonctions mu_input_* sont très simples.
+→ Ajouter la gestion du scroll, des touches spéciales, du copier/coller, etc.
+
+**6. Performance**
+Les allocations (ex : création de rectangles, chaînes) pourraient être réduites dans une version plus poussée.
+
+**7. Documentation**
+Ajouter plus de docstrings sur les fonctions publiques et des exemples d’utilisation.
+
+**8. Tests**
+Couvrir plus de cas : navigation clavier, focus perdu, edge-cases de clipping, etc.
+
+**9. API Renderer**
+L’API du renderer est minimaliste.
+→ Permettre de brancher d’autres backends (GLFW, SDL, etc.) facilement.
+
+**10. Ergonomie Julia**
+Utiliser des symboles ou enums pour les couleurs, les icônes, etc., plutôt que des entiers magiques.**
 La logique d’UI et le rendu sontr trop reliés (ex : draw_rect! dans les contrôles).
 → Pour faciliter le test et le portage, séparer la génération des commandes de dessin et leur exécution.
 
