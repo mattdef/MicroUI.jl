@@ -11,13 +11,15 @@ module MicroUI
 # Exports
 # -----------------------------------------------------------------------------
 export Context, Vec2, Rect, Color, mu_color, mu_rect, mu_vec2
-export mu_init, mu_begin, mu_end
+export mu_init, mu_begin, mu_end, mu_set_focus!
+export mu_get_id, mu_push_id!, mu_pop_id!
 export mu_text, mu_label, mu_button, mu_checkbox, mu_input_textbox
 export mu_input_mousemove, mu_input_mousedown, mu_input_mouseup
 export mu_input_scroll, mu_input_keydown, mu_input_keyup, mu_input_text
-export attach_renderer!, create_context_with_buffer_renderer
-export BufferRenderer, save_buffer_as_ppm, mu_begin_window, mu_end_window
+export attach_renderer!, create_context_with_buffer_renderer, BufferRenderer
+export mu_begin_window, mu_end_window, mu_bring_to_front!, save_buffer_as_ppm
 export mu_layout_row, end_layout_row
+export mu_push_clip_rect, mu_pop_clip_rect, current_clip_rect, mu_check_clip
 
 # -----------------------------------------------------------------------------
 # Types de base
@@ -37,6 +39,11 @@ mu_color(r::Integer, g::Integer, b::Integer, a::Integer) =
 # -----------------------------------------------------------------------------
 # Constantes
 # -----------------------------------------------------------------------------
+const HASH_INITIAL = UInt32(2166136261)
+const HASH_FACTOR = UInt32(16777619)
+
+const MU_CLIP_ALL = 1
+const MU_CLIP_PART = 2
 const MU_ICON_CLOSE = 1
 
 # -----------------------------------------------------------------------------
@@ -93,6 +100,28 @@ function default_style()
     ))
 end
 
+"""
+Structure pour la gestion du layout, miroir de mu_Layout en C.
+"""
+mutable struct Layout
+    body::Rect
+    next::Rect
+    position::Vec2
+    size::Vec2
+    max::Vec2
+    widths::Vector{Int32}
+    items::Int32
+    item_index::Int32
+    next_row::Int32
+    indent::Int32
+    
+    Layout() = new(mu_rect(0,0,0,0), mu_rect(0,0,0,0), mu_vec2(0,0), mu_vec2(0,0),
+                   mu_vec2(-1000000, -1000000), Int32[], 0, 0, 0, 0)
+end
+
+"""
+Structure Container.
+"""
 mutable struct Container
     title::String
     rect::Rect
@@ -103,29 +132,50 @@ mutable struct Container
     row_x::Int32
     row_y::Int32
     row_h::Int32
+    content_size::Vec2
+    zindex::Int32
 end
 
+"""
+Structure Context.
+"""
 mutable struct Context
+    # --- Champs de base ---
     style::Style
     renderer::Any
-    mouse_pos::Vec2
-    mouse_down::Bool
-    mouse_pressed::Bool
     text_width::Function
     text_height::Function
-    containers::Dict{String, Container}
-    current_window::Union{Nothing, Container}
-    hot_id::Int
-    active_id::Int
-    next_id::Int
-    id_counter::Int
-    input_buffer::String
-    key_pressed::Union{Nothing, Symbol}
-    cursor_blink::Int
-    command_list::Vector{AbstractCommand}
-    clip_stack::Vector{Rect}
+
+    # --- État de l'input ---
+    mouse_pos::Vec2
     last_mouse_pos::Vec2
     mouse_delta::Vec2
+    mouse_down::Bool
+    mouse_pressed::Bool
+    input_buffer::String
+    key_pressed::Union{Nothing, Symbol}
+
+    # --- Gestion des ID et du Focus ---
+    hot_id::UInt32
+    active_id::UInt32
+    focus_id::UInt32
+    updated_focus::Bool
+    last_id::UInt32
+    id_stack::Vector{UInt32}
+
+    # --- Gestion des conteneurs et du layout ---
+    containers::Dict{String, Container}
+    current_window::Union{Nothing, Container}
+    container_stack::Vector{Container}
+    layout_stack::Vector{Layout}
+
+    # --- Rendu et Clipping ---
+    command_list::Vector{Any}
+    clip_stack::Vector{Rect}
+    last_zindex::Int32
+
+    # --- Divers ---
+    cursor_blink::Int
 end
 
 
@@ -288,6 +338,24 @@ function draw_frame(ctx::Context, rect::Rect, colorid::Symbol)
     end
 end
 
+"Vérifie si un rectangle est visible dans la zone de clipping actuelle."
+function mu_check_clip(ctx::Context, r::Rect)
+    cr = current_clip_rect(ctx)
+    if r.x > cr.x + cr.w || r.x + r.w < cr.x || r.y > cr.y + cr.h || r.y + r.h < cr.y
+        return MU_CLIP_ALL
+    end
+    if r.x >= cr.x && r.x + r.w <= cr.x + cr.w && r.y >= cr.y && r.y + r.h <= cr.y + cr.h
+        return 0 # Totalement visible
+    end
+    return MU_CLIP_PART
+end
+
+"Retourne le conteneur actuellement actif."
+mu_get_current_container(ctx::Context) = last(ctx.container_stack)
+
+"Place un conteneur au premier plan."
+mu_bring_to_front!(ctx::Context, cnt::Container) = cnt.zindex = (ctx.last_zindex += 1)
+
 
 # -----------------------------------------------------------------------------
 # Création de contexte + renderer
@@ -297,13 +365,31 @@ function create_context_with_buffer_renderer(w=800, h=600)
     unclipped_rect = mu_rect(-1000000, -1000000, 2000000, 2000000)
     
     ctx = Context(
-        default_style(), nothing, mu_vec2(0,0), false, false,
-        identity, identity, Dict(), nothing, 0, 0, 0, 1, "", nothing, 0,
-        # -- Initialisation des nouveaux champs --
-        AbstractCommand[],         # Liste de commandes vide
-        [unclipped_rect],           # Pile de clipping avec la zone par défaut
-        mu_vec2(0,0), # last_mouse_pos
-        mu_vec2(0,0)  # mouse_delta
+        default_style(), 
+        nothing,
+        identity,
+        identity,
+        mu_vec2(0,0), 
+        mu_vec2(0,0), 
+        mu_vec2(0,0), 
+        false, 
+        false, 
+        "", 
+        nothing,
+        0, 
+        0, 
+        0, 
+        false, 
+        0, 
+        [HASH_INITIAL],
+        Dict{String, Container}(), 
+        nothing, 
+        [], 
+        [],
+        [], 
+        [unclipped_rect], 
+        0,
+        0
     )
     
     renderer = BufferRenderer(w, h)
@@ -312,32 +398,49 @@ function create_context_with_buffer_renderer(w=800, h=600)
 end
 
 # -----------------------------------------------------------------------------
-# API principale (mu_begin/mu_end)
+# API principale 
 # -----------------------------------------------------------------------------
 function mu_begin(ctx::Context)
     ctx.mouse_pressed = false
     ctx.current_window = nothing
-    ctx.id_counter = 1
-    ctx.cursor_blink += 1
-    # Calculer le delta de la souris depuis la dernière frame 
     ctx.mouse_delta = mu_vec2(ctx.mouse_pos.x - ctx.last_mouse_pos.x, 
                               ctx.mouse_pos.y - ctx.last_mouse_pos.y)
+    ctx.cursor_blink += 1
+    ctx.updated_focus = false
 end
 
 function mu_end(ctx::Context)
+    if !ctx.updated_focus
+        ctx.focus_id = 0
+    end
+    
+    ctx.active_id = ctx.mouse_down ? ctx.active_id : 0
     ctx.hot_id = 0
-    present!(ctx.renderer)
+
+    # Réinitialiser les entrées "one-shot" pour la prochaine frame
+    ctx.mouse_pressed = false
+    ctx.key_pressed = nothing
+    
     ctx.last_mouse_pos = ctx.mouse_pos
+    
+    # Vider la liste de commandes (le rendu devrait se faire avant)
+    # empty!(ctx.command_list)
+    
+    present!(ctx.renderer)
 end
 
 # -----------------------------------------------------------------------------
 # Fenêtre + layout horizontal/vertical simple
 # -----------------------------------------------------------------------------
 function mu_begin_window(ctx::Context, title::String, x::Int=50, y::Int=50, w::Int=200, h::Int=100)
+    # Pousse l'ID de la fenêtre sur la pile pour que les contrôles internes
+    # puissent en dériver leur propre ID.
+    mu_push_id!(ctx, title)
+
     # Récupère ou crée le conteneur de la fenêtre [cite: 1, 11]
     rect = mu_rect(x, y, w, h)
     container = get!(ctx.containers, title) do
-        Container(title, rect, mu_rect(0,0,0,0), true, mu_vec2(0,0), false, 0, 0, 0)
+        Container(title, rect, mu_rect(0,0,0,0), true, mu_vec2(0,0), false, 0, 0, 0, mu_vec2(0,0), 0)
     end
     
     # Si la fenêtre est fermée, ne rien faire
@@ -366,7 +469,8 @@ function mu_begin_window(ctx::Context, title::String, x::Int=50, y::Int=50, w::I
     mu_draw_text(ctx, ctx.style.font, title, mu_vec2(tr.x + ctx.style.padding, tr.y + ctx.style.padding), ctx.style.colors[:titletext])
     
     # --- Gestion des interactions de la barre de titre (déplacement) ---
-    title_id = (ctx.id_counter += 1)
+    title_id = mu_get_id(ctx, "!title")
+
     hovered = ctx.mouse_pos.x >= tr.x && ctx.mouse_pos.x <= tr.x + tr.w &&
               ctx.mouse_pos.y >= tr.y && ctx.mouse_pos.y <= tr.y + tr.h
 
@@ -384,9 +488,9 @@ function mu_begin_window(ctx::Context, title::String, x::Int=50, y::Int=50, w::I
     end
 
     # --- Bouton de fermeture (équivalent de MU_OPT_NOCLOSE) ---
-    close_id = (ctx.id_counter += 1)
     r_close = mu_rect(tr.x + tr.w - tr.h, tr.y, tr.h, tr.h) # Bouton carré 
     tr.w -= r_close.w # Réduit la zone de la barre de titre pour ne pas chevaucher
+    close_id = mu_get_id(ctx, "!close")
 
     # Dessine l'icône de fermeture 
     mu_draw_icon(ctx, MU_ICON_CLOSE, r_close, ctx.style.colors[:titletext])
@@ -419,11 +523,59 @@ function mu_begin_window(ctx::Context, title::String, x::Int=50, y::Int=50, w::I
     return true # La fenêtre est ouverte et active
 end
 
-mu_end_window(ctx::Context) = (ctx.current_window = nothing)
+function mu_end_window(ctx::Context)
+    mu_pop_clip_rect(ctx)
+    mu_pop_id!(ctx)
+    !isempty(ctx.container_stack) && pop!(ctx.container_stack)
+    ctx.current_window = nothing
+end
+
+# -----------------------------------------------------------------------------
+# GESTION DES ID (REMPLACE id_counter)
+# -----------------------------------------------------------------------------
+
+"""
+Algorithme de hachage FNV-1a 32-bit, comme en C.
+"""
+function fnv1a_hash(data::Vector{UInt8}, seed::UInt32)::UInt32
+    h = seed
+    for byte in data
+        h = (h ⊻ byte) * HASH_FACTOR
+    end
+    return h
+end
+
+"""
+Génère un ID stable et unique pour un contrôle.
+"""
+function mu_get_id(ctx::Context, data::Union{String, Symbol, Number})::UInt
+    bytes = Vector{UInt8}(string(data))
+    parent_id = last(ctx.id_stack)
+    ctx.last_id = fnv1a_hash(bytes, parent_id)
+    return ctx.last_id
+end
+
+"Pousse un nouvel ID sur la pile pour créer un contexte de nommage."
+mu_push_id!(ctx::Context, data) = push!(ctx.id_stack, mu_get_id(ctx, data))
+
+"Retire le dernier ID de la pile."
+mu_pop_id!(ctx::Context) = length(ctx.id_stack) > 1 && pop!(ctx.id_stack)
+
+# -----------------------------------------------------------------------------
+# GESTION DU FOCUS
+# -----------------------------------------------------------------------------
+
+"Définit le contrôle qui a le focus programmatiquement."
+function mu_set_focus!(ctx::Context, id::UInt)
+    ctx.focus_id = id
+    ctx.updated_focus = true
+end
+
 
 # -----------------------------------------------------------------------------
 # Layout
 # -----------------------------------------------------------------------------
+
 function mu_layout_row(ctx::Context)
     win = ctx.current_window
     win.row_mode = true
@@ -448,9 +600,11 @@ end
 
 end_layout_row(ctx::Context) = (ctx.current_window.cursor.y += ctx.current_window.row_h + ctx.style.spacing; ctx.current_window.row_mode = false)
 
+
 # -----------------------------------------------------------------------------
 # Contrôles de base avec gestion survol / focus
 # -----------------------------------------------------------------------------
+
 function mu_text(ctx::Context, text::String)
     w = get_text_width(ctx.renderer, text, nothing)
     h = get_text_height(ctx.renderer, nothing)
@@ -461,8 +615,8 @@ end
 mu_label(ctx::Context, text::String) = mu_text(ctx, text)
 
 function mu_button(ctx::Context, label::String)
-    id = ctx.id_counter
-    ctx.id_counter += 1
+    # Utilise le nouveau système d'ID au lieu de id_counter
+    id = mu_get_id(ctx, label) 
 
     w = get_text_width(ctx.renderer, label, nothing) + 2 * ctx.style.padding
     h = get_text_height(ctx.renderer, nothing) + 2 * ctx.style.padding
@@ -494,8 +648,7 @@ function mu_button(ctx::Context, label::String)
 end
 
 function mu_checkbox(ctx::Context, label::String, state::Base.RefValue{Bool})
-    id = ctx.id_counter
-    ctx.id_counter += 1
+    id = mu_get_id(ctx, label) 
 
     h = get_text_height(ctx.renderer, nothing) + 2 * ctx.style.padding
     w = h  # case carrée
@@ -520,29 +673,46 @@ function mu_checkbox(ctx::Context, label::String, state::Base.RefValue{Bool})
     draw_text!(ctx.renderer, label, mu_vec2(box.x + h + 4, box.y), ctx.style.colors[:text], nothing)
 end
 
-function mu_input_textbox(ctx::Context, buffer::Base.RefValue{String}, width::Int=200)
-    id = ctx.id_counter
-    ctx.id_counter += 1
+function mu_input_textbox(ctx::Context, label::String, buffer::Base.RefValue{String}, width::Int=200)
+    id = mu_get_id(ctx, label) 
 
     h = get_text_height(ctx.renderer, nothing) + 2 * ctx.style.padding
     r = next_control_rect(ctx, width, h)
+
     hovered = ctx.mouse_pos.x >= r.x && ctx.mouse_pos.x <= r.x + r.w &&
               ctx.mouse_pos.y >= r.y && ctx.mouse_pos.y <= r.y + r.h
 
+    # Si ce contrôle a le focus, on le signale au contexte.
+    if ctx.focus_id == id
+        ctx.updated_focus = true
+    end
+
+    # Donner le focus au clic
+    if hovered && ctx.mouse_pressed
+        mu_set_focus!(ctx, id)
+    end
+
+    # Perdre le focus si on clique ailleurs
+    if !hovered && ctx.mouse_pressed && ctx.focus_id == id
+        mu_set_focus!(ctx, 0)
+    end
+
+    #=
     if hovered
         ctx.hot_id = id
         if ctx.mouse_pressed
             ctx.active_id = id
         end
     end
+    =#
 
+    # Logique de dessin du fond
     bg = ctx.style.colors[:button]
-    if ctx.active_id == id
+    if ctx.focus_id == id
         bg = ctx.style.colors[:button_focus]
-    elseif ctx.hot_id == id
+    elseif hovered
         bg = ctx.style.colors[:button_hover]
     end
-
     draw_rect!(ctx.renderer, r, bg)
 
     text_x = r.x + ctx.style.padding
@@ -550,22 +720,22 @@ function mu_input_textbox(ctx::Context, buffer::Base.RefValue{String}, width::In
     draw_text!(ctx.renderer, buffer[], mu_vec2(text_x, text_y), ctx.style.colors[:text], nothing)
 
     # curseur clignotant si focus
-    if ctx.active_id == id && (ctx.cursor_blink % 60) < 30
+    if ctx.focus_id == id && (ctx.cursor_blink % 60) < 30
         tw = get_text_width(ctx.renderer, buffer[], nothing)
         cx = text_x + tw
         draw_text!(ctx.renderer, "|", mu_vec2(cx, text_y), ctx.style.colors[:text], nothing)
     end
 
-    # gestion entrée texte
-    if ctx.active_id == id && !isempty(ctx.input_buffer)
+    # Utiliser focus_id pour la gestion des entrées
+    # Gestion entrée texte
+    if ctx.focus_id == id && !isempty(ctx.input_buffer)
         buffer[] *= ctx.input_buffer
         ctx.input_buffer = ""
     end
 
-    # gestion touche retour arrière
-    if ctx.active_id == id && ctx.key_pressed == :backspace
+    # Gestion touche retour arrière
+    if ctx.focus_id == id && ctx.key_pressed == :backspace
         buffer[] = isempty(buffer[]) ? "" : buffer[][1:end-1]
-        ctx.key_pressed = nothing
     end
 end
 

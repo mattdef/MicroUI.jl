@@ -1,7 +1,7 @@
 name = "MicroUI"
 uuid = "8c0ede0a-6911-4ca7-83c4-4fa2fa689698"
 authors = ["Mattdef"]
-version = "0.2.2"
+version = "0.2.3"
 
 [deps]
 GLFW = "f7f18e0c-5ee9-5ccd-a5bf-e8befd85ed98"
