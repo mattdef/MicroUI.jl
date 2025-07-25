@@ -37,73 +37,38 @@ This library is free software; you can redistribute it and/or modify it under
 the terms of the MIT license. See [LICENSE](LICENSE) for details.
 
 ## Todo
-**1. ## Todo
-**1. Séparation logique/rendu**
-La logique d’UI et le rendu sontr trop reliés (ex : draw_rect! dans les contrôles).
-→ Pour faciliter le test et le portage, séparer la génération des commandes de dessin et leur exécution.
+**1. Logic/Rendering Separation**
+UI logic and rendering are too closely related (e.g., draw_rect! in controls).
+→ To facilitate testing and porting, separate the generation of drawing commands and their execution.
 
-**2. Gestion du focus et de l’input**
-Ajouter des helpers pour savoir si un contrôle a le focus ou est actif.
-Gérer le tab pour naviguer entre contrôles (accessibilité).
+**2. Focus and Input Management**
+Add helpers to determine if a control has focus or is active. 
+Manage the tab to navigate between controls (accessibility).
 
-**3. Gestion du layout**
-Le layout est très basique (row/col).
-→ Ajouter des helpers pour des layouts plus complexes (grille, auto-sizing, etc.).
+**3. Layout Management**
+The layout is very basic (row/col).
+→ Add helpers for more complex layouts (grid, auto-sizing, etc.).
 
-**4. Extensibilité**
-Les couleurs et styles sont codés en dur dans default_style.
-→ Permettre de charger des thèmes ou de personnaliser plus facilement.
+**4. Extensibility**
+Colors and styles are hard-coded in default_style.
+→ Allow for easier loading of themes or customization.
 
-**5. Gestion des entrées**
-Les fonctions mu_input_* sont très simples.
-→ Ajouter la gestion du scroll, des touches spéciales, du copier/coller, etc.
-
-**6. Performance**
-Les allocations (ex : création de rectangles, chaînes) pourraient être réduites dans une version plus poussée.
-
-**7. Documentation**
-Ajouter plus de docstrings sur les fonctions publiques et des exemples d’utilisation.
-
-**8. Tests**
-Couvrir plus de cas : navigation clavier, focus perdu, edge-cases de clipping, etc.
-
-**9. API Renderer**
-L’API du renderer est minimaliste.
-→ Permettre de brancher d’autres backends (GLFW, SDL, etc.) facilement.
-
-**10. Ergonomie Julia**
-Utiliser des symboles ou enums pour les couleurs, les icônes, etc., plutôt que des entiers magiques.**
-La logique d’UI et le rendu sontr trop reliés (ex : draw_rect! dans les contrôles).
-→ Pour faciliter le test et le portage, séparer la génération des commandes de dessin et leur exécution.
-
-**2. Gestion du focus et de l’input**
-Ajouter des helpers pour savoir si un contrôle a le focus ou est actif.
-Gérer le tab pour naviguer entre contrôles (accessibilité).
-
-**3. Gestion du layout**
-Le layout est très basique (row/col).
-→ Ajouter des helpers pour des layouts plus complexes (grille, auto-sizing, etc.).
-
-**4. Extensibilité**
-Les couleurs et styles sont codés en dur dans default_style.
-→ Permettre de charger des thèmes ou de personnaliser plus facilement.
-
-**5. Gestion des entrées**
-Les fonctions mu_input_* sont très simples.
-→ Ajouter la gestion du scroll, des touches spéciales, du copier/coller, etc.
+**5. Input Management**
+The mu_input_* functions are very simple.
+→ Add support for scrolling, special keys, copy/paste, etc.
 
 **6. Performance**
-Les allocations (ex : création de rectangles, chaînes) pourraient être réduites dans une version plus poussée.
+Allocations (e.g., creating rectangles, strings) could be reduced in a more advanced version.
 
 **7. Documentation**
-Ajouter plus de docstrings sur les fonctions publiques et des exemples d’utilisation.
+Add more docstrings on public functions and usage examples.
 
 **8. Tests**
-Couvrir plus de cas : navigation clavier, focus perdu, edge-cases de clipping, etc.
+Cover more cases: keyboard navigation, lost focus, clipping edge cases, etc.
 
-**9. API Renderer**
-L’API du renderer est minimaliste.
-→ Permettre de brancher d’autres backends (GLFW, SDL, etc.) facilement.
+**9. Renderer API**
+The renderer API is minimalist.
+→ Allows easy connection to other backends (GLFW, SDL, etc.).
 
-**10. Ergonomie Julia**
-Utiliser des symboles ou enums pour les couleurs, les icônes, etc., plutôt que des entiers magiques.
+**10. Julia Usability**
+Use symbols or enums for colors, icons, etc., rather than magic integers.
