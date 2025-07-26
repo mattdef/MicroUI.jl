@@ -3,7 +3,7 @@ using Test
 
 # Fonction utilitaire pour simuler une interaction complète de clic
 function simulate_click!(ctx::MicroUI.Context{T}, pos::MicroUI.Vec2{T}, action) where T
-    # Frame 1 – clic appuyé
+    # Frame 1 - clic appuyé
     MicroUI.begin_frame!(ctx)
     ctx.mouse_pos = pos
     ctx.mouse_down = true
@@ -246,29 +246,41 @@ end
         textbox_pos = MicroUI.vec2(Float32, 100, 80)
         
         function test_textbox()
+            MicroUI.begin_frame!(ctx)
             MicroUI.begin_window!(ctx, "Textbox Test")
             MicroUI.input_textbox!(ctx, "Test Input", buffer, 150)
             MicroUI.end_window!(ctx)
+            MicroUI.end_frame!(ctx)
             return nothing
         end
+
+        # Réinitialiser l'état avant le test
+        MicroUI.begin_frame!(ctx)
+        ctx.input_buffer = ""
+        ctx.key_pressed = nothing
+        MicroUI.end_frame!(ctx)
         
         # Donner le focus à la zone de texte
         simulate_click!(ctx, textbox_pos, test_textbox)
         
         # Test de l'entrée de texte
         MicroUI.begin_frame!(ctx)
+        MicroUI.begin_window!(ctx, "Textbox Test")
         MicroUI.input_text!(ctx, " added")
-        test_textbox()
+        MicroUI.input_textbox!(ctx, "Test Input", buffer, 150)
+        MicroUI.end_window!(ctx)
         MicroUI.end_frame!(ctx)
         
         @test buffer[] == "initial added"
         
         # Test du backspace
         MicroUI.begin_frame!(ctx)
-        MicroUI.input_keydown!(ctx, :backspace)
-        test_textbox()
+        MicroUI.begin_window!(ctx, "Textbox Test")
+        MicroUI.input_keydown!(ctx, :backspace)        # ← avant le textbox
+        MicroUI.input_textbox!(ctx, "Test Input", buffer, 150)
+        MicroUI.end_window!(ctx)
         MicroUI.end_frame!(ctx)
-        
+
         @test buffer[] == "initial adde"
     end
 

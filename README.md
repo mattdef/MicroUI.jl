@@ -57,18 +57,15 @@ Colors and styles are hard-coded in default_style.
 The mu_input_* functions are very simple.
 → Add support for scrolling, special keys, copy/paste, etc.
 
-**6. Performance**
-Allocations (e.g., creating rectangles, strings) could be reduced in a more advanced version.
-
-**7. Documentation**
+**6. Documentation**
 Add more docstrings on public functions and usage examples.
 
-**8. Tests**
+**7. Tests**
 Cover more cases: keyboard navigation, lost focus, clipping edge cases, etc.
 
-**9. Renderer API**
+**8. Renderer API**
 The renderer API is minimalist.
 → Allows easy connection to other backends (GLFW, SDL, etc.).
 
-**10. Julia Usability**
+**9. Julia Usability**
 Use symbols or enums for colors, icons, etc., rather than magic integers.

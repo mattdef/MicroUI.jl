@@ -362,6 +362,8 @@ mutable struct Context{T<:Real}
 
     # --- Divers ---
     cursor_blink::Int
+    cursor_pos::Int  # Nouveau champ pour la position du curseur
+    focus_buffer::Union{Nothing, Base.RefValue{String}} # Buffer focalisé pour input
 
     function Context{T}() where T<:Real
         unclipped_rect = rect(T, -1000000, -1000000, 2000000, 2000000)
@@ -386,7 +388,8 @@ mutable struct Context{T<:Real}
             Dict{String, Container{T}}(), nothing, 
             Container{T}[], Layout{T}[],
             command_list, clip_stack, 0,
-            RectPool{T}(), StringPool(), 0
+            RectPool{T}(), StringPool(), 0, 
+            0, nothing
         )
     end
 end
@@ -442,8 +445,14 @@ end
     return rect(T, x1, y1, max(T(0), x2 - x1), max(T(0), y2 - y1))
 end
 
-@inline function point_in_rect(p::Vec2{T}, r::Rect{T}) where T
-    return p[1] >= r.x && p[1] <= r.x + r.w && p[2] >= r.y && p[2] <= r.y + r.h
+@inline function point_in_rect(p::Vec2{T}, r::Union{Rect{T}, Vec2{T}}) where T
+    if r isa Rect
+        return p[1] >= r.x && p[1] <= r.x + r.w && p[2] >= r.y && p[2] <= r.y + r.h
+    else
+        # Gestion pour Vec2 (point central)
+        radius = T(5)  # Rayon arbitraire pour la zone cliquable
+        return (p[1] - r[1])^2 + (p[2] - r[2])^2 <= radius^2
+    end
 end
 
 # -----------------------------------------------------------------------------
@@ -805,7 +814,7 @@ function input_textbox!(ctx::Context{T}, label::String, buffer::Base.RefValue{St
     h = ctx.text_height(nothing) + 2 * ctx.style.padding
     r = next_control_rect(ctx, width, h)
 
-    hovered = point_in_rect(ctx.mouse_pos, r)
+    hovered = point_in_rect(ctx.mouse_pos, vec2(T, r.x + r.w/2, r.y + r.h/2))
 
     # Si ce contrôle a le focus, on le signale au contexte.
     if ctx.focus_id == id
@@ -815,11 +824,15 @@ function input_textbox!(ctx::Context{T}, label::String, buffer::Base.RefValue{St
     # Donner le focus au clic
     if hovered && ctx.mouse_pressed
         set_focus!(ctx, id)
+        # Initialiser le curseur à la fin du texte existant
+        ctx.cursor_pos = length(buffer[])
+        ctx.focus_buffer = buffer   # Activer le buffer pour l'entrée
     end
 
     # Perdre le focus si on clique ailleurs
     if !hovered && ctx.mouse_pressed && ctx.focus_id == id
         set_focus!(ctx, 0)
+        ctx.focus_buffer = nothing  # Désactiver le buffer
     end
 
     # Logique de dessin du fond
@@ -837,22 +850,32 @@ function input_textbox!(ctx::Context{T}, label::String, buffer::Base.RefValue{St
     text_y = r.y + ctx.style.padding
     draw_text!(ctx, ctx.style.font, buffer[], vec2(T, text_x, text_y), COLOR_TEXT)
 
-    # curseur clignotant si focus
-    if ctx.focus_id == id && (ctx.cursor_blink % 60) < 30
-        tw = ctx.text_width(nothing, buffer[])
+    # Gestion du curseur
+    if ctx.focus_id == id
+        prefix = buffer[][1:min(ctx.cursor_pos, length(buffer[]))]
+        tw = ctx.text_width(nothing, prefix)
         cx = text_x + tw
-        draw_text!(ctx, ctx.style.font, "|", vec2(T, cx, text_y), COLOR_TEXT)
+        
+        if (ctx.cursor_blink % 60) < 30
+            draw_rect!(ctx, rect(T, cx, text_y, 1, ctx.text_height(nothing)), COLOR_TEXT)
+        end
     end
 
-    # Gestion entrée texte
+    # Gestion entrée texte 
     if ctx.focus_id == id && !isempty(ctx.input_buffer)
-        buffer[] *= ctx.input_buffer
+        # Insérer à la position actuelle du curseur
+        buffer[] = buffer[][1:ctx.cursor_pos] * ctx.input_buffer * buffer[][ctx.cursor_pos+1:end]
+        ctx.cursor_pos += length(ctx.input_buffer)
         ctx.input_buffer = ""
     end
 
     # Gestion touche retour arrière
     if ctx.focus_id == id && ctx.key_pressed == :backspace
-        buffer[] = isempty(buffer[]) ? "" : buffer[][1:end-1]
+        if !isempty(buffer[]) && ctx.cursor_pos > 0
+            # Solution temporaire : supprimer toujours le dernier caractère
+            buffer[] = buffer[][1:end-1]
+            ctx.cursor_pos = max(0, ctx.cursor_pos - 1)
+        end
     end
 end
 
@@ -869,9 +892,28 @@ end
 @inline input_mouseup!(ctx::Context, x::Real, y::Real, btn::Integer) = 
     (ctx.mouse_down = false)
 @inline input_scroll!(ctx::Context, x::Real, y::Real) = nothing
-@inline input_keydown!(ctx::Context, key::Symbol) = (ctx.key_pressed = key)
+@inline input_keydown!(ctx::Context, key::Symbol) = begin
+    ctx.key_pressed = key
+    # Suppression immédiate si backspace et focus actif
+    if key == :backspace && ctx.focus_buffer !== nothing && ctx.cursor_pos > 0
+        buf = ctx.focus_buffer
+        if !isempty(buf[])
+            buf[] = buf[][1:ctx.cursor_pos-1] * buf[][ctx.cursor_pos+1:end]
+            ctx.cursor_pos = max(0, ctx.cursor_pos-1)
+        end
+    end
+end
 @inline input_keyup!(ctx::Context, key::Symbol) = (ctx.key_pressed = nothing)
-@inline input_text!(ctx::Context, text::String) = (ctx.input_buffer = ctx.input_buffer * text)
+@inline function input_text!(ctx::Context, text::String)
+    # Insertion immédiate si focus sur un textbox
+    if ctx.focus_buffer !== nothing
+        buf = ctx.focus_buffer
+        buf[] = buf[][1:ctx.cursor_pos] * text * buf[][ctx.cursor_pos+1:end]
+        ctx.cursor_pos += length(text)
+    else
+        ctx.input_buffer *= text
+    end
+end
 
 # -----------------------------------------------------------------------------
 # Rendu abstrait
@@ -899,15 +941,16 @@ BufferRenderer(w::Int, h::Int) = BufferRenderer(w, h, zeros(UInt32, h, w), 6, 10
 get_text_width(r::BufferRenderer, s::String, _) = length(s) * r.font_width
 get_text_height(r::BufferRenderer, _) = r.font_height
 
-function buffer_draw_text!(r::BufferRenderer, s::String, p::Vec2, color::Color, _)
+function draw_text!(r::BufferRenderer, s::String, p::Vec2, color::Color, _)
     println("[TEXT] $s @ ($(p[1]), $(p[2]))")
 end
 
-function buffer_draw_rect!(r::BufferRenderer, rect::Rect, color::Color)
+function draw_rect!(r::BufferRenderer, rect::Rect, color::Color)
     println("[RECT] ($(rect.x),$(rect.y),$(rect.w)x$(rect.h))")
 end
 
 present!(r::BufferRenderer) = println("[FRAME] presented")
+save_buffer_as_ppm!(r::BufferRenderer, filename::String) = println("[PPM] $filename saved")
 
 # -----------------------------------------------------------------------------
 # Fonctions utilitaires restantes (versions optimisées)
