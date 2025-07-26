@@ -819,7 +819,7 @@ function input_textbox!(ctx::Context{T}, label::String, buffer::Base.RefValue{St
 
     # Perdre le focus si on clique ailleurs
     if !hovered && ctx.mouse_pressed && ctx.focus_id == id
-        set_focus!(ctx, 0)
+        set_focus!(ctx, UInt32(0))  # Perdre le focus
     end
 
     # Logique de dessin du fond

@@ -37,35 +37,27 @@ This library is free software; you can redistribute it and/or modify it under
 the terms of the MIT license. See [LICENSE](LICENSE) for details.
 
 ## Todo
-**1. Logic/Rendering Separation**
-UI logic and rendering are too closely related (e.g., draw_rect! in controls).
-→ To facilitate testing and porting, separate the generation of drawing commands and their execution.
-
-**2. Focus and Input Management**
-Add helpers to determine if a control has focus or is active. 
+**1. Focus and Input Management**
 Manage the tab to navigate between controls (accessibility).
 
-**3. Layout Management**
+**2. Layout Management**
 The layout is very basic (row/col).
 → Add helpers for more complex layouts (grid, auto-sizing, etc.).
 
-**4. Extensibility**
+**3. Extensibility**
 Colors and styles are hard-coded in default_style.
 → Allow for easier loading of themes or customization.
 
-**5. Input Management**
-The mu_input_* functions are very simple.
+**4. Input Management**
+The input_* functions are very simple.
 → Add support for scrolling, special keys, copy/paste, etc.
 
-**6. Documentation**
+**5. Documentation**
 Add more docstrings on public functions and usage examples.
 
-**7. Tests**
+**6. Tests**
 Cover more cases: keyboard navigation, lost focus, clipping edge cases, etc.
 
-**8. Renderer API**
+**7. Renderer API**
 The renderer API is minimalist.
 → Allows easy connection to other backends (GLFW, SDL, etc.).
-
-**9. Julia Usability**
-Use symbols or enums for colors, icons, etc., rather than magic integers.
