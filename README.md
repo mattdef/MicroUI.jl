@@ -56,7 +56,7 @@ The input_* functions are very simple.
 Add more docstrings on public functions and usage examples.
 
 **6. Tests**
-Cover more cases: keyboard navigation, lost focus, clipping edge cases, etc.
+Cover more cases: keyboard navigation, lost focus, etc.
 
 **7. Renderer API**
 The renderer API is minimalist.

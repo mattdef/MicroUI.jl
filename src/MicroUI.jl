@@ -13,12 +13,13 @@ module MicroUI
 using StaticArrays  # Pour les vecteurs sans allocation
 
 # -----------------------------------------------------------------------------
-# Exports (inchangés)
+# Exports (étendus)
 # -----------------------------------------------------------------------------
 export Context, Vec2, Rect, Color, color, rect, vec2
 export init!, begin_frame!, end_frame!, set_focus!
 export get_id!, push_id!, pop_id!
 export text!, label!, button!, checkbox!, input_textbox!
+export slider!, number_input!, scrollbar!, tree_node! 
 export input_mousemove!, input_mousedown!, input_mouseup!
 export input_scroll!, input_keydown!, input_keyup!, input_text!
 export attach_renderer!, create_context_with_buffer_renderer, BufferRenderer
@@ -28,7 +29,7 @@ export push_clip_rect!, pop_clip_rect!, current_clip_rect, check_clip
 export UIColor, UIIcon, UIOption, ClipResult
 
 # -----------------------------------------------------------------------------
-# Enums et constantes (inchangés)
+# Enums et constantes (étendus)
 # -----------------------------------------------------------------------------
 @enum UIColor::UInt32 begin
     COLOR_TEXT = 0xE6E6E6FF
@@ -39,6 +40,11 @@ export UIColor, UIIcon, UIOption, ClipResult
     COLOR_WINDOW = 0x323232FF
     COLOR_TITLEBG = 0x191919FF
     COLOR_TITLETEXT = 0xF0F0F0FF
+    COLOR_SCROLLBAR = 0x2A2A2AFF 
+    COLOR_SCROLLBAR_THUMB = 0x555555FF 
+    COLOR_SLIDER_TRACK = 0x2B2B2BFF  
+    COLOR_SLIDER_THUMB = 0x4A90E2FF 
+    COLOR_NUMBER_INPUT = 0x3A3A3AFF 
 end
 
 @enum UIIcon::Int32 begin
@@ -46,6 +52,12 @@ end
     ICON_CHECK = 2
     ICON_COLLAPSED = 3
     ICON_EXPANDED = 4
+    ICON_ARROW_UP = 5  
+    ICON_ARROW_DOWN = 6 
+    ICON_ARROW_LEFT = 7 
+    ICON_ARROW_RIGHT = 8 
+    ICON_MINUS = 9   
+    ICON_PLUS = 10 
 end
 
 @enum UIOption::UInt32 begin
@@ -89,7 +101,7 @@ end
 Base.convert(::Type{Rect{T}}, r::Rect{S}) where {T<:Real, S<:Real} = 
     Rect{T}(T(r.x), T(r.y), T(r.w), T(r.h))
 
-# Structure Color compacte (32 bits total) - CORRECTION: ajout des champs r,g,b,a
+# Structure Color compacte (32 bits total)
 struct Color
     r::UInt8
     g::UInt8
@@ -119,7 +131,7 @@ end
     )
 end
 
-# Conversion depuis les enums (pré-calculé)
+# Conversion depuis les enums (pré-calculé) - étendu
 const COLOR_CACHE = Dict{UIColor, Color}(
     COLOR_TEXT => Color(0xE6, 0xE6, 0xE6, 0xFF),
     COLOR_BUTTON => Color(0x4B, 0x4B, 0x4B, 0xFF),
@@ -128,7 +140,12 @@ const COLOR_CACHE = Dict{UIColor, Color}(
     COLOR_BORDER => Color(0x20, 0x20, 0x20, 0xFF),
     COLOR_WINDOW => Color(0x32, 0x32, 0x32, 0xFF),
     COLOR_TITLEBG => Color(0x19, 0x19, 0x19, 0xFF),
-    COLOR_TITLETEXT => Color(0xF0, 0xF0, 0xF0, 0xFF)
+    COLOR_TITLETEXT => Color(0xF0, 0xF0, 0xF0, 0xFF),
+    COLOR_SCROLLBAR => Color(0x2A, 0x2A, 0x2A, 0xFF),
+    COLOR_SCROLLBAR_THUMB => Color(0x55, 0x55, 0x55, 0xFF),
+    COLOR_SLIDER_TRACK => Color(0x2A, 0x2A, 0x2A, 0xFF),
+    COLOR_SLIDER_THUMB => Color(0x4A, 0x90, 0xE2, 0xFF),
+    COLOR_NUMBER_INPUT => Color(0x3A, 0x3A, 0x3A, 0xFF)
 )
 
 @inline color(c::UIColor) = COLOR_CACHE[c]
@@ -149,10 +166,8 @@ end
     if pool.next_index <= length(pool.pool)
         rect_ref = pool.pool[pool.next_index]
         pool.next_index += 1
-        # Réutilise l'emplacement existant
-        return Rect{T}(x, y, w, h)  # Toujours une nouvelle instance, mais sans allocation supplémentaire
+        return Rect{T}(x, y, w, h)
     else
-        # Pool épuisé, alloue normalement (cas rare)
         return Rect{T}(x, y, w, h)
     end
 end
@@ -172,15 +187,12 @@ end
 
 function get_string!(pool::StringPool, s::String)::String
     if pool.next_index <= length(pool.strings)
-        # Réutilise si la chaîne existe déjà et a la bonne taille
         idx = pool.next_index
         if isassigned(pool.strings, idx) && pool.lengths[idx] >= length(s)
-            # Réutilise la chaîne existante
             pool.next_index += 1
-            return s  # En pratique, il faudrait copier dans le buffer existant
+            return s
         end
     end
-    # Cas normal - stocke la nouvelle chaîne
     if pool.next_index <= length(pool.strings)
         pool.strings[pool.next_index] = s
         pool.lengths[pool.next_index] = length(s)
@@ -197,7 +209,6 @@ end
 # OPTIMISATION 4: Commandes de dessin avec union types pour éviter allocations
 # -----------------------------------------------------------------------------
 
-# Structures optimisées avec @inline
 struct RectCommand{T<:Real}
     rect::Rect{T}
     color::Color
@@ -206,7 +217,7 @@ end
 struct TextCommand{T<:Real}
     pos::Vec2{T}
     color::Color
-    text::String  # En production, remplacer par un index dans un pool
+    text::String
 end
 
 struct IconCommand{T<:Real}
@@ -219,16 +230,23 @@ struct ClipCommand{T<:Real}
     rect::Rect{T}
 end
 
-# Union types pour éviter l'allocation de structures abstraites
+struct SliderCommand{T<:Real}
+    track_rect::Rect{T}
+    thumb_rect::Rect{T}
+    track_color::Color
+    thumb_color::Color
+end
+
 const DrawCommand{T} = Union{
     RectCommand{T},
     TextCommand{T},
     IconCommand{T},
-    ClipCommand{T}
+    ClipCommand{T},
+    SliderCommand{T}
 } where T<:Real
 
 # -----------------------------------------------------------------------------
-# OPTIMISATION 5: Structures avec pools intégrés - CORRECTION: utilisation de Dict
+# OPTIMISATION 5: Structures avec pools intégrés
 # -----------------------------------------------------------------------------
 
 mutable struct Style{T<:Real}
@@ -236,10 +254,13 @@ mutable struct Style{T<:Real}
     padding::T
     spacing::T
     size::Vec2{T}
-    colors::Dict{UIColor, Color}  # Retour à Dict pour la compatibilité avec les tests
+    colors::Dict{UIColor, Color}
+    slider_thumb_size::T
+    scrollbar_size::T
+    number_input_button_width::T
+    tree_indent::T
     
     function Style{T}() where T<:Real
-        # Utilisation d'un Dict pour les couleurs
         colors = Dict{UIColor, Color}(
             COLOR_TEXT => COLOR_CACHE[COLOR_TEXT],
             COLOR_BUTTON => COLOR_CACHE[COLOR_BUTTON],
@@ -248,14 +269,19 @@ mutable struct Style{T<:Real}
             COLOR_BORDER => COLOR_CACHE[COLOR_BORDER],
             COLOR_WINDOW => COLOR_CACHE[COLOR_WINDOW],
             COLOR_TITLEBG => COLOR_CACHE[COLOR_TITLEBG],
-            COLOR_TITLETEXT => COLOR_CACHE[COLOR_TITLETEXT]
+            COLOR_TITLETEXT => COLOR_CACHE[COLOR_TITLETEXT],
+            COLOR_SCROLLBAR => COLOR_CACHE[COLOR_SCROLLBAR],
+            COLOR_SCROLLBAR_THUMB => COLOR_CACHE[COLOR_SCROLLBAR_THUMB],
+            COLOR_SLIDER_TRACK => COLOR_CACHE[COLOR_SLIDER_TRACK],
+            COLOR_SLIDER_THUMB => COLOR_CACHE[COLOR_SLIDER_THUMB],
+            COLOR_NUMBER_INPUT => COLOR_CACHE[COLOR_NUMBER_INPUT]
         )
         
-        new{T}(nothing, T(4), T(4), vec2(T, 64, 14), colors)
+        new{T}(nothing, T(4), T(4), vec2(T, 64, 14), colors, 
+               T(12), T(16), T(20), T(16)) 
     end
 end
 
-# Accesseur rapide pour les couleurs
 @inline get_color(style::Style, c::UIColor) = style.colors[c]
 
 # -----------------------------------------------------------------------------
@@ -275,8 +301,7 @@ mutable struct Layout{T<:Real}
     indent::T
     
     function Layout{T}() where T<:Real
-        # Pré-alloue les widths pour éviter les resize
-        widths = Vector{T}(undef, 32)  # Capacité initiale
+        widths = Vector{T}(undef, 32)
         new{T}(
             rect(T, 0, 0, 0, 0), rect(T, 0, 0, 0, 0), 
             vec2(T, 0, 0), vec2(T, 0, 0), vec2(T, -1000000, -1000000),
@@ -286,7 +311,7 @@ mutable struct Layout{T<:Real}
 end
 
 # -----------------------------------------------------------------------------
-# OPTIMISATION 7: Container avec pools - CORRECTION: constructeur externe
+# OPTIMISATION 7: Container avec pools
 # -----------------------------------------------------------------------------
 
 mutable struct Container{T<:Real}
@@ -301,24 +326,45 @@ mutable struct Container{T<:Real}
     row_h::T
     content_size::Vec2{T}
     zindex::Int32
+    scroll_x::T
+    scroll_y::T
+    max_scroll_x::T
+    max_scroll_y::T
 end
 
-# Constructeur externe pour Container
 function Container{T}(title::String, rect_arg::Rect{T}) where T<:Real
     Container{T}(
         title, rect_arg, rect(T, 0, 0, 0, 0), true,
         vec2(T, 0, 0), false, T(0), T(0), T(0),
-        vec2(T, 0, 0), 0
+        vec2(T, 0, 0), 0,
+        T(0), T(0), T(0), T(0) 
     )
 end
 
-# Méthode pour gérer la conversion automatique de types
 function Container(title::String, rect_arg::Rect{T}) where T<:Real
     Container{T}(title, rect_arg)
 end
 
 # -----------------------------------------------------------------------------
-# OPTIMISATION 8: Context avec pools intégrés
+# État pour les contrôles étendus (évite les allocations répétées)
+# -----------------------------------------------------------------------------
+
+# État global pour les tree nodes
+mutable struct TreeNodeState
+    expanded_nodes::Set{UInt32}
+    TreeNodeState() = new(Set{UInt32}())
+end
+
+# État global pour les sliders (évite le drag flottant)
+mutable struct SliderState{T<:Real}
+    active_slider::UInt32
+    start_value::T
+    start_mouse_pos::T
+    SliderState{T}() where T = new{T}(0, T(0), T(0))
+end
+
+# -----------------------------------------------------------------------------
+# OPTIMISATION 8: Context avec pools intégrés (étendu)
 # -----------------------------------------------------------------------------
 
 mutable struct Context{T<:Real}
@@ -336,6 +382,7 @@ mutable struct Context{T<:Real}
     mouse_pressed::Bool
     input_buffer::String
     key_pressed::Union{Nothing, Symbol}
+    scroll_delta::Vec2{T} 
 
     # --- Gestion des ID et du Focus ---
     hot_id::UInt32
@@ -360,15 +407,18 @@ mutable struct Context{T<:Real}
     rect_pool::RectPool{T}
     string_pool::StringPool
 
+    # --- États pour les nouveaux contrôles ---
+    tree_state::TreeNodeState
+    slider_state::SliderState{T}
+
     # --- Divers ---
     cursor_blink::Int
 
     function Context{T}() where T<:Real
         unclipped_rect = rect(T, -1000000, -1000000, 2000000, 2000000)
         
-        # Pré-alloue les collections avec une taille raisonnable
         command_list = Vector{DrawCommand{T}}()
-        sizehint!(command_list, 1000)  # Évite les reallocations
+        sizehint!(command_list, 1000)
         
         clip_stack = Vector{Rect{T}}()
         sizehint!(clip_stack, 16)
@@ -376,22 +426,23 @@ mutable struct Context{T<:Real}
         
         id_stack = Vector{UInt32}()
         sizehint!(id_stack, 32)
-        push!(id_stack, UInt32(2166136261))  # HASH_INITIAL
+        push!(id_stack, UInt32(2166136261))
         
         new{T}(
             Style{T}(), nothing, identity, identity,
             vec2(T, 0, 0), vec2(T, 0, 0), vec2(T, 0, 0),
-            false, false, "", nothing,
+            false, false, "", nothing, vec2(T, 0, 0), 
             0, 0, 0, false, 0, id_stack,
             Dict{String, Container{T}}(), nothing, 
             Container{T}[], Layout{T}[],
             command_list, clip_stack, 0,
-            RectPool{T}(), StringPool(), 0
+            RectPool{T}(), StringPool(),
+            TreeNodeState(), SliderState{T}(), 
+            0
         )
     end
 end
 
-# Constructeur par défaut avec Float32
 Context() = Context{Float32}()
 
 # -----------------------------------------------------------------------------
@@ -399,18 +450,16 @@ Context() = Context{Float32}()
 # -----------------------------------------------------------------------------
 
 function begin_frame!(ctx::Context{T}) where T
-    # Reset des pools pour réutiliser la mémoire
     reset_pool!(ctx.rect_pool)
     reset_pool!(ctx.string_pool)
-    
-    # Clear command list sans désallocation
     empty!(ctx.command_list)
     
     ctx.mouse_pressed = false
     ctx.current_window = nothing
-    ctx.mouse_delta = ctx.mouse_pos - ctx.last_mouse_pos  # Utilise l'arithmétique vectorielle de StaticArrays
+    ctx.mouse_delta = ctx.mouse_pos - ctx.last_mouse_pos
     ctx.cursor_blink += 1
     ctx.updated_focus = false
+    ctx.scroll_delta = vec2(T, 0, 0) 
 end
 
 function end_frame!(ctx::Context)
@@ -420,14 +469,15 @@ function end_frame!(ctx::Context)
     
     ctx.active_id = ctx.mouse_down ? ctx.active_id : 0
     ctx.hot_id = 0
+    
+    # Reset du slider state si plus de souris enfoncée
+    if !ctx.mouse_down
+        ctx.slider_state.active_slider = 0
+    end
 
-    # Réinitialiser les entrées "one-shot" pour la prochaine frame
     ctx.mouse_pressed = false
     ctx.key_pressed = nothing
-    
     ctx.last_mouse_pos = ctx.mouse_pos
-    
-    present!(ctx.renderer)
 end
 
 # -----------------------------------------------------------------------------
@@ -444,6 +494,10 @@ end
 
 @inline function point_in_rect(p::Vec2{T}, r::Rect{T}) where T
     return p[1] >= r.x && p[1] <= r.x + r.w && p[2] >= r.y && p[2] <= r.y + r.h
+end
+
+@inline function clamp_value(value::T, min_val::T, max_val::T) where T
+    return min(max(value, min_val), max_val)
 end
 
 # -----------------------------------------------------------------------------
@@ -463,12 +517,11 @@ end
 end
 
 @inline function draw_box!(ctx::Context{T}, rect_arg::Rect{T}, color_arg::Union{Color, UIColor}) where T
-    # Dessine les 4 côtés du rectangle avec une épaisseur de 1 pixel
     color_val = color_arg isa UIColor ? get_color(ctx.style, color_arg) : color_arg
-    draw_rect!(ctx, rect(T, rect_arg.x + 1, rect_arg.y, rect_arg.w - 2, 1), color_val) # Haut
-    draw_rect!(ctx, rect(T, rect_arg.x + 1, rect_arg.y + rect_arg.h - 1, rect_arg.w - 2, 1), color_val) # Bas
-    draw_rect!(ctx, rect(T, rect_arg.x, rect_arg.y, 1, rect_arg.h), color_val) # Gauche
-    draw_rect!(ctx, rect(T, rect_arg.x + rect_arg.w - 1, rect_arg.y, 1, rect_arg.h), color_val) # Droite
+    draw_rect!(ctx, rect(T, rect_arg.x + 1, rect_arg.y, rect_arg.w - 2, 1), color_val)
+    draw_rect!(ctx, rect(T, rect_arg.x + 1, rect_arg.y + rect_arg.h - 1, rect_arg.w - 2, 1), color_val)
+    draw_rect!(ctx, rect(T, rect_arg.x, rect_arg.y, 1, rect_arg.h), color_val)
+    draw_rect!(ctx, rect(T, rect_arg.x + rect_arg.w - 1, rect_arg.y, 1, rect_arg.h), color_val)
 end
 
 @inline function draw_text!(ctx::Context{T}, font::Any, text::String, pos::Vec2{T}, color_arg::Union{Color, UIColor}) where T
@@ -482,15 +535,12 @@ end
 end
 
 @inline function draw_frame!(ctx::Context{T}, rect_arg::Rect{T}, colorid::UIColor) where T
-    # Dessine le fond du contrôle
     draw_rect!(ctx, rect_arg, colorid)
     
-    # Certains types n'ont pas de bordure
     if colorid in (COLOR_TITLEBG,)
         return
     end
     
-    # Dessine la bordure si la couleur de bordure est visible
     border_color = get_color(ctx.style, COLOR_BORDER)
     if border_color.a > 0
         expanded_rect = rect(T, rect_arg.x - 1, rect_arg.y - 1, rect_arg.w + 2, rect_arg.h + 2)
@@ -526,45 +576,35 @@ function bring_to_front!(ctx::Context, cnt::Container)
 end
 
 # -----------------------------------------------------------------------------
-# Fenêtre + layout horizontal/vertical simple - CORRECTION: simplification
+# Fenêtre + layout horizontal/vertical simple
 # -----------------------------------------------------------------------------
 function begin_window!(ctx::Context{T}, title::String, x::Int=50, y::Int=50, w::Int=200, h::Int=100) where T
-    # Pousse l'ID de la fenêtre sur la pile pour que les contrôles internes
-    # puissent en dériver leur propre ID.
     push_id!(ctx, title)
 
-    # Récupère ou crée le conteneur de la fenêtre
-    rect_window = rect(T, x, y, w, h)  # Conversion explicite vers T
+    rect_window = rect(T, x, y, w, h)
     container = get!(ctx.containers, title) do
         Container(title, rect_window)
     end
     
-    # Si la fenêtre est fermée, ne rien faire
     if !container.open
         return false
     end
 
     ctx.current_window = container
     
-    # --- Dessin de la fenêtre ---
     draw_frame!(ctx, container.rect, COLOR_WINDOW)
     
     body = container.rect
 
-    # --- Barre de titre ---
     title_height = ctx.style.size[2] + ctx.style.padding * 2
     tr = rect(T, container.rect.x, container.rect.y, container.rect.w, title_height)
     
-    # Dessine le fond de la barre de titre 
     draw_frame!(ctx, tr, COLOR_TITLEBG)
 
-    # Zone de contenu (body) est réduite par la hauteur de la barre de titre 
     body = rect(T, body.x, body.y + tr.h, body.w, body.h - tr.h)
     
-    # Titre du texte
     draw_text!(ctx, ctx.style.font, title, vec2(T, tr.x + ctx.style.padding, tr.y + ctx.style.padding), COLOR_TITLETEXT)
     
-    # --- Gestion des interactions de la barre de titre (déplacement) ---
     title_id = get_id!(ctx, "!title")
 
     hovered = point_in_rect(ctx.mouse_pos, tr)
@@ -576,21 +616,17 @@ function begin_window!(ctx::Context{T}, title::String, x::Int=50, y::Int=50, w::
         ctx.active_id = title_id
     end
     
-    # Déplacer la fenêtre si la barre de titre est active (cliquée-glissée) 
     if ctx.active_id == title_id && ctx.mouse_down
         container.rect = rect(T, container.rect.x + ctx.mouse_delta[1], 
                                  container.rect.y + ctx.mouse_delta[2], 
                                  container.rect.w, container.rect.h)
     end
 
-    # --- Bouton de fermeture ---
-    r_close = rect(T, tr.x + tr.w - tr.h, tr.y, tr.h, tr.h) # Bouton carré 
+    r_close = rect(T, tr.x + tr.w - tr.h, tr.y, tr.h, tr.h)
     close_id = get_id!(ctx, "!close")
 
-    # Dessine l'icône de fermeture 
     draw_icon!(ctx, ICON_CLOSE, r_close, COLOR_TITLETEXT)
 
-    # Logique de clic sur le bouton de fermeture
     hovered_close = point_in_rect(ctx.mouse_pos, r_close)
     
     if hovered_close && !ctx.mouse_down
@@ -600,21 +636,17 @@ function begin_window!(ctx::Context{T}, title::String, x::Int=50, y::Int=50, w::
         ctx.active_id = close_id
     end
 
-    # Si le bouton est cliqué, on ferme la fenêtre 
     if !ctx.mouse_down && ctx.hot_id == close_id && ctx.active_id == close_id
         container.open = false
     end
     
-    # --- Finalisation ---
-    # Met à jour la géométrie du conteneur et prépare le layout
     container.body = body
     container.cursor = vec2(T, container.rect.x + ctx.style.padding, 
                                container.rect.y + title_height + ctx.style.padding)
     
-    # Applique le clipping à la zone de contenu de la fenêtre 
     push_clip_rect!(ctx, body)
 
-    return true # La fenêtre est ouverte et active
+    return true
 end
 
 function end_window!(ctx::Context)
@@ -631,9 +663,6 @@ end
 const HASH_INITIAL = UInt32(2166136261)
 const HASH_FACTOR = UInt32(16777619)
 
-"""
-Algorithme de hachage FNV-1a 32-bit.
-"""
 function fnv1a_hash(data::Vector{UInt8}, seed::UInt32)::UInt32
     h = seed
     for byte in data
@@ -642,9 +671,6 @@ function fnv1a_hash(data::Vector{UInt8}, seed::UInt32)::UInt32
     return h
 end
 
-"""
-Génère un ID stable et unique pour un contrôle.
-"""
 function get_id!(ctx::Context, data::Union{String, Symbol, Number})::UInt32
     bytes = Vector{UInt8}(string(data))
     parent_id = last(ctx.id_stack)
@@ -652,19 +678,10 @@ function get_id!(ctx::Context, data::Union{String, Symbol, Number})::UInt32
     return ctx.last_id
 end
 
-"""
-Pousse un nouvel ID sur la pile.
-"""
 push_id!(ctx::Context, data) = push!(ctx.id_stack, get_id!(ctx, data))
 
-"""
-Retire le dernier ID de la pile.
-"""
 pop_id!(ctx::Context) = length(ctx.id_stack) > 1 && pop!(ctx.id_stack)
 
-"""
-Définit le contrôle qui a le focus.
-"""
 function set_focus!(ctx::Context, id::UInt32)
     ctx.focus_id = id
     ctx.updated_focus = true
@@ -712,7 +729,7 @@ function end_layout_row!(ctx::Context{T}) where T
 end
 
 # -----------------------------------------------------------------------------
-# Contrôles de base avec noms snake_case et !
+# Contrôles de base
 # -----------------------------------------------------------------------------
 
 function text!(ctx::Context, text::String)
@@ -774,7 +791,7 @@ function checkbox!(ctx::Context, label::String, state::Base.RefValue{Bool})
     id = get_id!(ctx, label)
     
     h = ctx.text_height(nothing) + 2 * ctx.style.padding
-    w = h  # case carrée
+    w = h
     r = next_control_rect(ctx, w + 4 + ctx.text_width(nothing, label), h)
     box = rect(typeof(r.x), r.x, r.y, h, h)
 
@@ -807,22 +824,18 @@ function input_textbox!(ctx::Context{T}, label::String, buffer::Base.RefValue{St
 
     hovered = point_in_rect(ctx.mouse_pos, r)
 
-    # Si ce contrôle a le focus, on le signale au contexte.
     if ctx.focus_id == id
         ctx.updated_focus = true
     end
 
-    # Donner le focus au clic
     if hovered && ctx.mouse_pressed
         set_focus!(ctx, id)
     end
 
-    # Perdre le focus si on clique ailleurs
     if !hovered && ctx.mouse_pressed && ctx.focus_id == id
-        set_focus!(ctx, UInt32(0))  # Perdre le focus
+        set_focus!(ctx, UInt32(0))
     end
 
-    # Logique de dessin du fond
     bg_color = if ctx.focus_id == id
         COLOR_BUTTON_FOCUS
     elseif hovered
@@ -837,27 +850,356 @@ function input_textbox!(ctx::Context{T}, label::String, buffer::Base.RefValue{St
     text_y = r.y + ctx.style.padding
     draw_text!(ctx, ctx.style.font, buffer[], vec2(T, text_x, text_y), COLOR_TEXT)
 
-    # curseur clignotant si focus
     if ctx.focus_id == id && (ctx.cursor_blink % 60) < 30
         tw = ctx.text_width(nothing, buffer[])
         cx = text_x + tw
         draw_text!(ctx, ctx.style.font, "|", vec2(T, cx, text_y), COLOR_TEXT)
     end
 
-    # Gestion entrée texte
     if ctx.focus_id == id && !isempty(ctx.input_buffer)
         buffer[] *= ctx.input_buffer
         ctx.input_buffer = ""
     end
 
-    # Gestion touche retour arrière
     if ctx.focus_id == id && ctx.key_pressed == :backspace
         buffer[] = isempty(buffer[]) ? "" : buffer[][1:end-1]
     end
 end
 
+"""
+Slider horizontal pour valeurs numériques avec optimisations.
+"""
+function slider!(ctx::Context{T}, label::String, value::Base.RefValue{<:Real}, 
+                min_val::Real=0.0, max_val::Real=1.0, width::Real=120) where T
+    if ctx.current_window === nothing
+        return false
+    end
+    
+    id = get_id!(ctx, label)
+    
+    h = ctx.style.size[2] + ctx.style.padding
+    r = next_control_rect(ctx, width, h)
+    
+    # Zone du track (rail)
+    track_rect = rect(T, r.x, r.y + h÷4, r.w, h÷2)
+    
+    # Calcul de la position du thumb
+    normalized_val = (T(value[]) - T(min_val)) / (T(max_val) - T(min_val))
+    normalized_val = clamp_value(normalized_val, T(0), T(1))
+    
+    thumb_size = ctx.style.slider_thumb_size
+    thumb_x = r.x + normalized_val * (r.w - thumb_size)
+    thumb_rect = rect(T, thumb_x, r.y, thumb_size, h)
+    
+    hovered = point_in_rect(ctx.mouse_pos, r)
+    thumb_hovered = point_in_rect(ctx.mouse_pos, thumb_rect)
+    
+    # Gestion des interactions
+    if (hovered || thumb_hovered) && !ctx.mouse_down
+        ctx.hot_id = id
+    end
+    
+    if ctx.hot_id == id && ctx.mouse_pressed
+        ctx.active_id = id
+        ctx.slider_state.active_slider = id
+        ctx.slider_state.start_value = T(value[])
+        ctx.slider_state.start_mouse_pos = ctx.mouse_pos[1]
+    end
+    
+    # Mise à jour de la valeur pendant le drag
+    changed = false
+    if ctx.active_id == id && ctx.mouse_down && ctx.slider_state.active_slider == id
+        # Calcul de la nouvelle position relative
+        relative_pos = (ctx.mouse_pos[1] - r.x) / r.w
+        relative_pos = clamp_value(relative_pos, T(0), T(1))
+        
+        new_value = T(min_val) + relative_pos * (T(max_val) - T(min_val))
+        if new_value != value[]
+            value[] = new_value
+            changed = true
+        end
+    end
+    
+    # Rendu
+    draw_rect!(ctx, track_rect, COLOR_SLIDER_TRACK)
+    
+    # Couleur du thumb basée sur l'état
+    thumb_color = if ctx.active_id == id
+        COLOR_BUTTON_FOCUS
+    elseif ctx.hot_id == id
+        COLOR_SLIDER_THUMB
+    else
+        COLOR_BUTTON
+    end
+    
+    draw_rect!(ctx, thumb_rect, thumb_color)
+    
+    # Affichage de la valeur (optionnel)
+    value_text = string(round(value[], digits=2))
+    text_w = ctx.text_width(nothing, value_text)
+    text_x = r.x + r.w + ctx.style.spacing
+    draw_text!(ctx, ctx.style.font, value_text, 
+              vec2(T, text_x, r.y), COLOR_TEXT)
+    
+    return changed
+end
+
+"""
+Input numérique avec boutons +/- et saisie directe.
+"""
+function number_input!(ctx::Context{T}, label::String, value::Base.RefValue{<:Real}, 
+                      step::Real=1.0, min_val::Real=-Inf, max_val::Real=Inf, 
+                      width::Real=120) where T
+    if ctx.current_window === nothing
+        return false
+    end
+    
+    push_id!(ctx, label)
+    
+    h = ctx.style.size[2] + 2 * ctx.style.padding
+    button_w = ctx.style.number_input_button_width
+    input_w = width - 2 * button_w
+    
+    total_r = next_control_rect(ctx, width, h)
+    
+    # Bouton moins (-)
+    minus_r = rect(T, total_r.x, total_r.y, button_w, h)
+    minus_id = get_id!(ctx, "minus")
+    minus_hovered = point_in_rect(ctx.mouse_pos, minus_r)
+    minus_pressed = false
+    
+    if minus_hovered && !ctx.mouse_down
+        ctx.hot_id = minus_id
+    end
+    if ctx.hot_id == minus_id && ctx.mouse_pressed
+        ctx.active_id = minus_id
+        minus_pressed = true
+    end
+    
+    minus_color = if ctx.active_id == minus_id
+        COLOR_BUTTON_FOCUS
+    elseif ctx.hot_id == minus_id
+        COLOR_BUTTON_HOVER
+    else
+        COLOR_BUTTON
+    end
+    
+    draw_frame!(ctx, minus_r, minus_color)
+    draw_icon!(ctx, ICON_MINUS, minus_r, COLOR_TEXT)
+    
+    # Zone de saisie du nombre
+    input_r = rect(T, total_r.x + button_w, total_r.y, input_w, h)
+    input_id = get_id!(ctx, "input")
+    input_hovered = point_in_rect(ctx.mouse_pos, input_r)
+    
+    if input_hovered && ctx.mouse_pressed
+        set_focus!(ctx, input_id)
+    end
+    if !input_hovered && ctx.mouse_pressed && ctx.focus_id == input_id
+        set_focus!(ctx, UInt32(0))
+    end
+    
+    input_color = if ctx.focus_id == input_id
+        COLOR_NUMBER_INPUT
+    elseif input_hovered
+        COLOR_BUTTON_HOVER
+    else
+        COLOR_NUMBER_INPUT
+    end
+    
+    draw_frame!(ctx, input_r, input_color)
+    
+    # Affichage de la valeur
+    value_text = string(value[])
+    text_x = input_r.x + ctx.style.padding
+    text_y = input_r.y + ctx.style.padding
+    draw_text!(ctx, ctx.style.font, value_text, vec2(T, text_x, text_y), COLOR_TEXT)
+    
+    # Curseur clignotant si focus
+    if ctx.focus_id == input_id && (ctx.cursor_blink % 60) < 30
+        tw = ctx.text_width(nothing, value_text)
+        cx = text_x + tw
+        draw_text!(ctx, ctx.style.font, "|", vec2(T, cx, text_y), COLOR_TEXT)
+    end
+    
+    # Bouton plus (+)
+    plus_r = rect(T, total_r.x + button_w + input_w, total_r.y, button_w, h)
+    plus_id = get_id!(ctx, "plus")
+    plus_hovered = point_in_rect(ctx.mouse_pos, plus_r)
+    plus_pressed = false
+    
+    if plus_hovered && !ctx.mouse_down
+        ctx.hot_id = plus_id
+    end
+    if ctx.hot_id == plus_id && ctx.mouse_pressed  
+        ctx.active_id = plus_id
+        plus_pressed = true
+    end
+    
+    plus_color = if ctx.active_id == plus_id
+        COLOR_BUTTON_FOCUS
+    elseif ctx.hot_id == plus_id
+        COLOR_BUTTON_HOVER
+    else
+        COLOR_BUTTON
+    end
+    
+    draw_frame!(ctx, plus_r, plus_color)
+    draw_icon!(ctx, ICON_PLUS, plus_r, COLOR_TEXT)
+    
+    # Logique de changement de valeur
+    changed = false
+    
+    if minus_pressed && !ctx.mouse_down
+        new_val = value[] - step
+        if new_val >= min_val
+            value[] = new_val
+            changed = true
+        end
+    end
+    
+    if plus_pressed && !ctx.mouse_down
+        new_val = value[] + step
+        if new_val <= max_val
+            value[] = new_val
+            changed = true
+        end
+    end
+    
+    # Gestion saisie directe (simplifié)
+    if ctx.focus_id == input_id && !isempty(ctx.input_buffer)
+        # Ici on pourrait parser la saisie, pour l'instant on ignore
+        ctx.input_buffer = ""
+    end
+    
+    pop_id!(ctx)
+    return changed
+end
+
+"""
+Scrollbar verticale avec thumb proportionnel au contenu.
+"""
+function scrollbar!(ctx::Context{T}, id_str::String, scroll_value::Base.RefValue{<:Real}, 
+                   content_size::Real, visible_size::Real, 
+                   x::Real, y::Real, height::Real) where T
+    if content_size <= visible_size
+        return false # Pas besoin de scrollbar
+    end
+    
+    id = get_id!(ctx, id_str)
+    
+    # Rectangle de la scrollbar
+    sb_w = ctx.style.scrollbar_size
+    r = rect(T, x, y, sb_w, height)
+    
+    # Calcul du thumb
+    thumb_ratio = visible_size / content_size
+    thumb_height = max(T(20), height * thumb_ratio) # Hauteur minimale de 20px
+    
+    max_scroll = content_size - visible_size
+    scroll_ratio = scroll_value[] / max_scroll
+    scroll_ratio = clamp_value(T(scroll_ratio), T(0), T(1))
+    
+    thumb_y = y + scroll_ratio * (height - thumb_height)
+    thumb_r = rect(T, x, thumb_y, sb_w, thumb_height)
+    
+    hovered = point_in_rect(ctx.mouse_pos, r)
+    thumb_hovered = point_in_rect(ctx.mouse_pos, thumb_r)
+    
+    if (hovered || thumb_hovered) && !ctx.mouse_down
+        ctx.hot_id = id
+    end
+    
+    if ctx.hot_id == id && ctx.mouse_pressed
+        ctx.active_id = id
+    end
+    
+    # Mise à jour pendant le drag
+    changed = false
+    if ctx.active_id == id && ctx.mouse_down
+        # Calcul de la nouvelle position
+        relative_pos = (ctx.mouse_pos[2] - y - thumb_height/2) / (height - thumb_height)
+        relative_pos = clamp_value(relative_pos, T(0), T(1))
+        
+        new_scroll = relative_pos * max_scroll
+        if abs(new_scroll - scroll_value[]) > 0.1  # Seuil pour éviter les micro-changements
+            scroll_value[] = new_scroll
+            changed = true
+        end
+    end
+    
+    # Rendu
+    draw_rect!(ctx, r, COLOR_SCROLLBAR)
+    
+    thumb_color = if ctx.active_id == id
+        COLOR_BUTTON_FOCUS
+    elseif ctx.hot_id == id
+        COLOR_BUTTON_HOVER
+    else
+        COLOR_SCROLLBAR_THUMB
+    end
+    
+    draw_rect!(ctx, thumb_r, thumb_color)
+    
+    return changed
+end
+
+"""
+Tree node avec état d'expansion persistant.
+"""
+function tree_node!(ctx::Context{T}, label::String, expanded::Base.RefValue{Bool}, 
+                   level::Int=0) where T
+    if ctx.current_window === nothing
+        return false
+    end
+    
+    id = get_id!(ctx, label)
+    
+    # Calcul de l'indentation
+    indent = level * ctx.style.tree_indent
+    h = ctx.style.size[2] + ctx.style.padding
+    icon_size = h
+    text_w = ctx.text_width(nothing, label)
+    total_w = indent + icon_size + ctx.style.spacing + text_w
+    
+    r = next_control_rect(ctx, total_w, h)
+    
+    # Rectangle pour l'icône d'expansion
+    icon_r = rect(T, r.x + indent, r.y, icon_size, h)
+    
+    hovered = point_in_rect(ctx.mouse_pos, icon_r)
+    
+    if hovered && !ctx.mouse_down
+        ctx.hot_id = id
+    end
+    
+    if ctx.hot_id == id && ctx.mouse_pressed
+        ctx.active_id = id
+        expanded[] = !expanded[]
+    end
+    
+    # Choix de l'icône
+    icon = expanded[] ? ICON_EXPANDED : ICON_COLLAPSED
+    
+    # Couleur basée sur l'état
+    icon_color = if ctx.hot_id == id
+        COLOR_BUTTON_HOVER
+    else
+        COLOR_TEXT
+    end
+    
+    # Rendu
+    draw_icon!(ctx, icon, icon_r, icon_color)
+    
+    # Texte du label
+    text_x = r.x + indent + icon_size + ctx.style.spacing
+    draw_text!(ctx, ctx.style.font, label, vec2(T, text_x, r.y), COLOR_TEXT)
+    
+    return expanded[]
+end
+
 # -----------------------------------------------------------------------------
-# Fonctions d'entrée avec noms snake_case et !
+# Fonctions d'entrée
 # -----------------------------------------------------------------------------
 
 @inline input_mousemove!(ctx::Context{T}, x::Real, y::Real) where T = 
@@ -868,13 +1210,25 @@ end
     (ctx.mouse_down = true; ctx.mouse_pressed = true)
 @inline input_mouseup!(ctx::Context, x::Real, y::Real, btn::Integer) = 
     (ctx.mouse_down = false)
-@inline input_scroll!(ctx::Context, x::Real, y::Real) = nothing
+
+@inline function input_scroll!(ctx::Context{T}, x::Real, y::Real) where T
+    ctx.scroll_delta = vec2(T, x, y)
+    
+    # Application automatique du scroll au conteneur actuel si il y en a un
+    if ctx.current_window !== nothing
+        ctx.current_window.scroll_y = clamp_value(
+            ctx.current_window.scroll_y - T(y * 20), # Facteur de scroll
+            T(0), ctx.current_window.max_scroll_y
+        )
+    end
+end
+
 @inline input_keydown!(ctx::Context, key::Symbol) = (ctx.key_pressed = key)
 @inline input_keyup!(ctx::Context, key::Symbol) = (ctx.key_pressed = nothing)
 @inline input_text!(ctx::Context, text::String) = (ctx.input_buffer = ctx.input_buffer * text)
 
 # -----------------------------------------------------------------------------
-# Rendu abstrait
+# Rendu abstrait 
 # -----------------------------------------------------------------------------
 abstract type Renderer end
 
@@ -885,7 +1239,7 @@ function attach_renderer!(ctx::Context, renderer::Renderer)
     return ctx
 end
 
-# BufferRenderer optimisé
+# BufferRenderer optimisé 
 mutable struct BufferRenderer <: Renderer
     width::Int
     height::Int
@@ -904,13 +1258,26 @@ function buffer_draw_text!(r::BufferRenderer, s::String, p::Vec2, color::Color, 
 end
 
 function buffer_draw_rect!(r::BufferRenderer, rect::Rect, color::Color)
-    println("[RECT] ($(rect.x),$(rect.y),$(rect.w)x$(rect.h))")
+    println("[RECT] ($(rect.x),$(rect.y),$(rect.w)x$(rect.h)) color=($(color.r),$(color.g),$(color.b))")
 end
 
-present!(r::BufferRenderer) = println("[FRAME] presented")
+function buffer_draw_icon!(r::BufferRenderer, icon::UIIcon, rect::Rect, color::Color)
+    icon_names = Dict(
+        ICON_CLOSE => "×", ICON_CHECK => "✓", ICON_COLLAPSED => "▶",
+        ICON_EXPANDED => "▼", ICON_ARROW_UP => "↑", ICON_ARROW_DOWN => "↓",
+        ICON_ARROW_LEFT => "←", ICON_ARROW_RIGHT => "→", ICON_MINUS => "−",
+        ICON_PLUS => "+"
+    )
+    symbol = get(icon_names, icon, "?")
+    println("[ICON] $symbol @ ($(rect.x),$(rect.y),$(rect.w)x$(rect.h))")
+end
+
+function buffer_draw_slider!(r::BufferRenderer, track::Rect, thumb::Rect, track_color::Color, thumb_color::Color)
+    println("[SLIDER] track:($(track.x),$(track.y),$(track.w)x$(track.h)) thumb:($(thumb.x),$(thumb.y),$(thumb.w)x$(thumb.h))")
+end
 
 # -----------------------------------------------------------------------------
-# Fonctions utilitaires restantes (versions optimisées)
+# Fonctions utilitaires restantes
 # -----------------------------------------------------------------------------
 
 function init!(ctx::Context{T}) where T
@@ -932,5 +1299,11 @@ end
 create_context_with_buffer_renderer(w::Int, h::Int) = create_context_with_buffer_renderer(Float32; w=w, h=h)
 create_context_with_buffer_renderer(::Type{T}, w::Int, h::Int) where T<:Real = create_context_with_buffer_renderer(T; w=w, h=h)
 
+# -----------------------------------------------------------------------------
+# Fonctions utilitaires pour la sauvegarde (stub pour compatibilité)
+# -----------------------------------------------------------------------------
+function save_buffer_as_ppm!(renderer::BufferRenderer, filename::String)
+    println("[SAVE] Saving buffer to $filename (stub implementation)")
+end
+
 end # module
-# -------------
