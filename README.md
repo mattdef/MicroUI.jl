@@ -38,10 +38,9 @@ the terms of the MIT license. See [LICENSE](LICENSE) for details.
 
 ## Todo
 **1. Focus and Input Management**
-Manage the tab to navigate between controls (accessibility).
+Manage the tab to navigate between controls.
 
 **2. Layout Management**
-The layout is very basic (row/col).
 → Add helpers for more complex layouts (grid, auto-sizing, etc.).
 
 **3. Extensibility**
@@ -54,10 +53,3 @@ The input_* functions are very simple.
 
 **5. Documentation**
 Add more docstrings on public functions and usage examples.
-
-**6. Tests**
-Cover more cases: keyboard navigation, lost focus, etc.
-
-**7. Renderer API**
-The renderer API is minimalist.
-→ Allows easy connection to other backends (GLFW, SDL, etc.).

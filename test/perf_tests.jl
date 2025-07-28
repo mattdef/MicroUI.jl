@@ -2,113 +2,108 @@ using Test
 
 include("utils_tests.jl")
 
-@testset "All Performance Tests" begin
+# ============================================================================
+# TESTS DE PERFORMANCE
+# ============================================================================
 
-    @testset "Performance et Mémoire" begin
-        ctx, _ = MicroUI.create_context_with_buffer_renderer()
-        
-        # Test qu'on peut créer beaucoup d'ID sans problème
-        ids = Set{UInt32}()
-        for i in 1:1000
-            id = MicroUI.get_id!(ctx, "item_$i")
-            push!(ids, id)
-        end
-        
-        # Tous les ID devraient être uniques
-        @test length(ids) == 1000
-        
-        # Test que les frames successives nettoient correctement l'état
-        initial_commands = length(ctx.command_list)
-        
-        for _ in 1:10
-            MicroUI.begin_frame!(ctx)
-            MicroUI.begin_window!(ctx, "Perf Test")
-            MicroUI.button!(ctx, "Button")
-            MicroUI.end_window!(ctx)
-            MicroUI.end_frame!(ctx)
-        end
-        
-        # Les commandes sont vidées à chaque frame (begin_frame! fait empty!)
-        @test length(ctx.command_list) >= 0  # Au moins pas d'erreur
+@testset "Tests de Performance" begin
+    @testset "Création de contexte" begin
+        t = @benchmark Context()
+        # Le contexte devrait être créé rapidement
+        @test mean(t).time < 1_000_000  # < 1ms
     end
-
-    @testset "Pool de Mémoire" begin
-        ctx, _ = MicroUI.create_context_with_buffer_renderer(Float32; w=400, h=300)
-        
-        # Test du pool de rectangles
-        @test ctx.rect_pool.next_index == 1
-        
-        # Test de reset du pool
-        MicroUI.reset_pool!(ctx.rect_pool)
-        @test ctx.rect_pool.next_index == 1
-        
-        # Test du pool de strings
-        @test ctx.string_pool.next_index == 1
-        MicroUI.reset_pool!(ctx.string_pool)
-        @test ctx.string_pool.next_index == 1
-        
-        # Test que begin_frame! reset les pools
-        MicroUI.begin_frame!(ctx)
-        @test ctx.rect_pool.next_index == 1
-        @test ctx.string_pool.next_index == 1
-        MicroUI.end_frame!(ctx)
-    end
-
-    @testset "Cache de Couleurs" begin
-        # Test que le cache de couleurs est correctement initialisé
-        @test haskey(MicroUI.COLOR_CACHE, MicroUI.COLOR_TEXT)
-        @test haskey(MicroUI.COLOR_CACHE, MicroUI.COLOR_BUTTON)
-        
-        # Test que les couleurs du cache sont correctes
-        text_color = MicroUI.color(MicroUI.COLOR_TEXT)
-        @test text_color.r == 0xE6
-        @test text_color.g == 0xE6
-        @test text_color.b == 0xE6
-        @test text_color.a == 0xFF
-        
-        # Test de performance du cache (pas d'allocation)
-        for _ in 1:1000
-            c = MicroUI.color(MicroUI.COLOR_BUTTON)
-            @test c isa MicroUI.Color
+    
+    @testset "Frame vide" begin
+        ctx = create_test_context()
+        t = @benchmark begin
+            begin_frame($ctx)
+            end_frame($ctx)
         end
+        @test mean(t).time < 100_000  # < 0.1ms
     end
-
-    @testset "Performance du Layout" begin
-        ctx, _ = MicroUI.create_context_with_buffer_renderer(Float32; w=500, h=400)
+    
+    @testset "Fenêtre simple" begin
+        ctx = create_test_context()
+        t = @benchmark begin
+            begin_frame($ctx)
+            if begin_window($ctx, "Test", Rect(0, 0, 200, 200)) == RES_ACTIVE
+                label($ctx, "Hello")
+                end_window($ctx)
+            end
+            end_frame($ctx)
+        end
+        @test mean(t).time < 500_000  # < 0.5ms
+    end
+    
+    @testset "Interface complexe" begin
+        ctx = create_test_context()
+        value = Ref(50.0f0)
+        check = Ref(false)
+        text = Ref("Test")
         
-        MicroUI.begin_frame!(ctx)
-        MicroUI.begin_window!(ctx, "Layout Performance", 10, 10, 480, 380)
+        t = @benchmark begin
+            begin_frame($ctx)
+            if begin_window($ctx, "Complex", Rect(0, 0, 400, 600)) == RES_ACTIVE
+                # Plusieurs contrôles
+                for i in 1:10
+                    layout_row!($ctx, 2, [100, -1], 0)
+                    label($ctx, "Label $i:")
+                    if i % 3 == 0
+                        slider!($ctx, "Slide", $value, 0.0f0, 100.0f0)
+                    elseif i % 3 == 1
+                        checkbox!($ctx, "Check $i", $check)
+                    else
+                        button($ctx, "Button $i")
+                    end
+                end
+                end_window($ctx)
+            end
+            end_frame($ctx)
+        end
+        @test mean(t).time < 5_000_000  # < 5ms pour interface complexe
+    end
+    
+    @testset "Stress test - Nombreuses fenêtres" begin
+        ctx = create_test_context()
         
-        # Test de nombreux contrôles en layout row
-        MicroUI.layout_row!(ctx)
+        t = @benchmark begin
+            begin_frame($ctx)
+            for i in 1:20
+                if begin_window($ctx, "Window$i", Rect(i*20, i*20, 150, 100)) == RES_ACTIVE
+                    label($ctx, "Content $i")
+                    end_window($ctx)
+                end
+            end
+            end_frame($ctx)
+        end
+        # Même avec 20 fenêtres, devrait rester performant
+        @test mean(t).time < 10_000_000  # < 10ms
+    end
+    
+    @testset "Perf allocations" begin
+        ctx = create_test_context()
         
-        initial_cursor = ctx.current_window.cursor
-        
-        # Ajouter plusieurs contrôles horizontalement
-        for i in 1:10
-            rect = MicroUI.next_control_rect(ctx, 40, 25)
-            @test rect.w == 40.0f0
-            @test rect.h == 25.0f0
+        # Warmup
+        for i in 1:3
+            begin_frame(ctx)
+            if begin_window(ctx, "Test", Rect(0, 0, 200, 200)) == RES_ACTIVE
+                button(ctx, "Test")
+                end_window(ctx)
+            end
+            end_frame(ctx)
         end
         
-        # Le curseur X devrait avoir beaucoup bougé
-        @test ctx.current_window.cursor[1] > initial_cursor[1] + 400
+        # Tester chaque partie séparément
+        @info "begin_frame" alloc=@allocated begin_frame(ctx)
         
-        MicroUI.end_layout_row!(ctx)
-        
-        # Test de layout vertical par défaut
-        initial_y = ctx.current_window.cursor[2]
-        
-        for i in 1:5
-            rect = MicroUI.next_control_rect(ctx, 100, 30)
-            @test rect.h == 30.0f0
+        @info "begin_window" alloc=@allocated begin
+            begin_window(ctx, "Test", Rect(0, 0, 200, 200))
         end
         
-        # Le curseur Y devrait avoir bougé vers le bas
-        @test ctx.current_window.cursor[2] > initial_y + 150
+        @info "button" alloc=@allocated button(ctx, "Test")
         
-        MicroUI.end_window!(ctx)
-        MicroUI.end_frame!(ctx)
+        @info "end_window" alloc=@allocated end_window(ctx)
+        
+        @info "end_frame" alloc=@allocated end_frame(ctx)
     end
-
 end

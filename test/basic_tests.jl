@@ -1,157 +1,152 @@
 using Test
 
-@testset "Basic Tests" begin
+include("utils_tests.jl")
 
-    @testset "Types et Constructeurs" begin
-        # Test des constructeurs paramétriques
-        @test MicroUI.vec2(10, 20) isa MicroUI.Vec2{Int}
-        @test MicroUI.vec2(10.0, 20.0) isa MicroUI.Vec2{Float64}
-        @test MicroUI.vec2(Float32, 10, 20) isa MicroUI.Vec2{Float32}
+# ============================================================================
+# TESTS BASIQUES
+# ============================================================================
+
+@testset "Types et Structures de Base" begin
+    @testset "Vec2" begin
+        v1 = Vec2(10, 20)
+        v2 = Vec2(5, 15)
         
-        @test MicroUI.rect(0, 0, 100, 50) isa MicroUI.Rect{Int}
-        @test MicroUI.rect(Float32, 0, 0, 100, 50) isa MicroUI.Rect{Float32}
+        @test v1.x == 10
+        @test v1.y == 20
         
-        # Test des couleurs - CORRECTION: utilisation des champs corrects
-        c = MicroUI.color(255, 128, 64, 255)
-        @test c.r == 255 && c.g == 128 && c.b == 64 && c.a == 255
-        
-        # Test des enums
-        @test MicroUI.COLOR_BUTTON isa MicroUI.UIColor
-        @test MicroUI.ICON_CLOSE isa MicroUI.UIIcon
-        @test MicroUI.CLIP_ALL isa MicroUI.ClipResult
+        # Opérations arithmétiques
+        @test (v1 + v2).x == 15
+        @test (v1 - v2).x == 5
+        @test (v1 * 2).x == 20
     end
-
-    @testset "Conversion de Types" begin
-        # Test de conversion Vec2 - utilisation de convert explicite si nécessaire
-        v_int = MicroUI.vec2(10, 20)
-        v_float = MicroUI.vec2(Float32, v_int[1], v_int[2])  # Conversion manuelle
-        @test v_float isa MicroUI.Vec2{Float32}
-        @test v_float[1] == 10.0f0 && v_float[2] == 20.0f0
+    
+    @testset "Rect" begin
+        r = Rect(10, 20, 100, 50)
+        @test r.x == 10
+        @test r.y == 20
+        @test r.w == 100
+        @test r.h == 50
         
-        # Test de conversion Rect - CORRECTION: utilisation du convert implémenté
-        r_int = MicroUI.rect(0, 0, 100, 50)
-        r_float = convert(MicroUI.Rect{Float64}, r_int)
-        @test r_float isa MicroUI.Rect{Float64}
-        @test r_float.w == 100.0 && r_float.h == 50.0
+        # Expansion
+        r2 = expand_rect(r, Int32(5))
+        @test r2.x == 5
+        @test r2.y == 15
+        @test r2.w == 110
+        @test r2.h == 60
     end
-
-    @testset "Context et Initialisation" begin
-        # Test de création de contexte avec différents types
-        ctx_f32, renderer = MicroUI.create_context_with_buffer_renderer(Float32; w=400, h=300)
-        @test ctx_f32 isa MicroUI.Context{Float32}
-        @test renderer isa MicroUI.BufferRenderer
-        
-        ctx_f64, _ = MicroUI.create_context_with_buffer_renderer(Float64; w=400, h=300)
-        @test ctx_f64 isa MicroUI.Context{Float64}
-        
-        # Test d'initialisation - CORRECTION: vérification avec haskey sur Dict
-        MicroUI.init!(ctx_f32)
-        @test !isempty(ctx_f32.style.colors)
-        @test haskey(ctx_f32.style.colors, MicroUI.COLOR_BUTTON)
+    
+    @testset "Color" begin
+        c = Color(255, 128, 64, 255)
+        @test c.r == 255
+        @test c.g == 128
+        @test c.b == 64
+        @test c.a == 255
     end
-
-    @testset "Gestion des Entrées" begin
-        ctx, _ = MicroUI.create_context_with_buffer_renderer(Float32; w=200, h=200)
+    
+    @testset "Intersection de rectangles" begin
+        r1 = Rect(0, 0, 100, 100)
+        r2 = Rect(50, 50, 100, 100)
+        r3 = intersect_rects(r1, r2)
         
-        # Test de mouvement de souris
-        MicroUI.input_mousemove!(ctx, 50.0f0, 75.0f0)
-        @test ctx.mouse_pos[1] == 50.0f0 && ctx.mouse_pos[2] == 75.0f0
+        @test r3.x == 50
+        @test r3.y == 50
+        @test r3.w == 50
+        @test r3.h == 50
         
-        # Test avec Vec2
-        pos = MicroUI.vec2(Float32, 100, 120)
-        MicroUI.input_mousemove!(ctx, pos)
-        @test ctx.mouse_pos == pos
-        
-        # Test des entrées clavier
-        MicroUI.input_keydown!(ctx, :backspace)
-        @test ctx.key_pressed == :backspace
-        
-        MicroUI.input_keyup!(ctx, :backspace)
-        @test ctx.key_pressed === nothing
-        
-        # Test d'entrée de texte
-        MicroUI.input_text!(ctx, "Hello")
-        @test ctx.input_buffer == "Hello"
+        # Pas d'intersection
+        r4 = Rect(200, 200, 50, 50)
+        r5 = intersect_rects(r1, r4)
+        @test r5.w == 0
+        @test r5.h == 0
     end
-
-    @testset "Gestion des ID" begin
-        ctx, _ = MicroUI.create_context_with_buffer_renderer()
-        
-        # Test de génération d'ID
-        id1 = MicroUI.get_id!(ctx, "button1")
-        id2 = MicroUI.get_id!(ctx, "button2")
-        @test id1 != id2
-        
-        # Test de pile d'ID
-        initial_stack_size = length(ctx.id_stack)
-        MicroUI.push_id!(ctx, "window1")
-        @test length(ctx.id_stack) == initial_stack_size + 1
-        
-        MicroUI.pop_id!(ctx)
-        @test length(ctx.id_stack) == initial_stack_size
-        
-        # Test de focus
-        MicroUI.set_focus!(ctx, id1)
-        @test ctx.focus_id == id1
-        @test ctx.updated_focus == true
+    
+    @testset "Point dans rectangle" begin
+        r = Rect(10, 10, 100, 100)
+        @test MicroUI.rect_overlaps_vec2(r, Vec2(50, 50)) == true
+        @test MicroUI.rect_overlaps_vec2(r, Vec2(5, 5)) == false
+        @test MicroUI.rect_overlaps_vec2(r, Vec2(10, 10)) == true  # Bord inclus
+        @test MicroUI.rect_overlaps_vec2(r, Vec2(110, 110)) == false  # Bord exclus
     end
+end
 
-    @testset "Clipping" begin
-        ctx, _ = MicroUI.create_context_with_buffer_renderer(Float32; w=400, h=300)
+@testset "Stack Générique" begin
+    @testset "Opérations de base" begin
+        s = MicroUI.Stack{Int, 10}()
         
-        # Test de clipping initial
-        initial_clip = MicroUI.current_clip_rect(ctx)
-        @test initial_clip.w > 1000000  # Rectangle "infini"
+        @test isempty(s)
+        @test s.idx == 0
         
-        # Test d'ajout de zone de clipping
-        test_rect = MicroUI.rect(Float32, 10, 10, 100, 100)
-        MicroUI.push_clip_rect!(ctx, test_rect)
+        # Push
+        MicroUI.push!(s, 42)
+        @test !isempty(s)
+        @test s.idx == 1
+        @test MicroUI.top(s) == 42
         
-        current_clip = MicroUI.current_clip_rect(ctx)
-        @test current_clip.x == 10.0f0
-        @test current_clip.w == 100.0f0
+        # Multiple push
+        for i in 2:5
+            MicroUI.push!(s, i * 10)
+        end
+        @test s.idx == 5
+        @test MicroUI.top(s) == 50
         
-        # Test de vérification de clipping
-        visible_rect = MicroUI.rect(Float32, 20, 20, 50, 50)
-        @test MicroUI.check_clip(ctx, visible_rect) == MicroUI.CLIP_NONE
-        
-        outside_rect = MicroUI.rect(Float32, 200, 200, 50, 50)
-        @test MicroUI.check_clip(ctx, outside_rect) == MicroUI.CLIP_ALL
-        
-        MicroUI.pop_clip_rect!(ctx)
-        @test MicroUI.current_clip_rect(ctx) == initial_clip
+        # Pop
+        MicroUI.pop!(s)
+        @test s.idx == 4
+        @test MicroUI.top(s) == 40
     end
-
-    @testset "Hachage et ID" begin
-        # Test de l'algorithme de hachage FNV-1a
-        data1 = Vector{UInt8}("test")
-        data2 = Vector{UInt8}("test")
-        data3 = Vector{UInt8}("different")
+    
+    @testset "Limites" begin
+        s = MicroUI.Stack{Int, 3}()
         
-        seed = MicroUI.HASH_INITIAL
-        hash1 = MicroUI.fnv1a_hash(data1, seed)
-        hash2 = MicroUI.fnv1a_hash(data2, seed)
-        hash3 = MicroUI.fnv1a_hash(data3, seed)
+        # Remplir la stack
+        MicroUI.push!(s, 1)
+        MicroUI.push!(s, 2)
+        MicroUI.push!(s, 3)
         
-        @test hash1 == hash2  # Même données = même hash
-        @test hash1 != hash3  # Données différentes = hash différents
+        # Overflow
+        @test_throws ErrorException MicroUI.push!(s, 4)
         
-        # Test de génération d'ID avec différents types
-        ctx, _ = MicroUI.create_context_with_buffer_renderer()
+        # Vider la stack
+        MicroUI.pop!(s)
+        MicroUI.pop!(s)
+        MicroUI.pop!(s)
         
-        id_string = MicroUI.get_id!(ctx, "button")
-        id_different = MicroUI.get_id!(ctx, "different_button")
-        id_symbol = MicroUI.get_id!(ctx, :button)
-        id_number = MicroUI.get_id!(ctx, 42)
-        
-        @test id_string isa UInt32
-        @test id_symbol isa UInt32
-        @test id_number isa UInt32
-        @test id_string == id_symbol  
-        @test id_string != id_number  
-        @test id_symbol != id_number  
-        @test id_string != id_different
-        @test id_symbol != id_different
+        # Underflow
+        @test_throws ErrorException MicroUI.pop!(s)
+        @test_throws ErrorException MicroUI.top(s)
     end
+end
 
+@testset "Système d'ID et Hash" begin
+    ctx = create_test_context()
+    
+    @testset "Hash FNV-1a" begin
+        # Même données = même ID
+        id1 = get_id(ctx, "test")
+        id2 = get_id(ctx, "test")
+        @test id1 == id2
+        
+        # Données différentes = ID différents
+        id3 = get_id(ctx, "other")
+        @test id1 != id3
+    end
+    
+    @testset "Stack d'ID" begin
+        base_id = get_id(ctx, "base")
+        
+        push_id!(ctx, "child")
+        child_id = get_id(ctx, "item")
+        
+        push_id!(ctx, "subchild")
+        subchild_id = get_id(ctx, "item")
+        
+        # Les IDs doivent être différents grâce au contexte
+        @test child_id != subchild_id
+        
+        pop_id!(ctx)
+        pop_id!(ctx)
+        
+        # Retour au contexte initial
+        @test get_id(ctx, "base") == base_id
+    end
 end
