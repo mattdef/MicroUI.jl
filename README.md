@@ -1,4 +1,5 @@
-# ![microui](https://user-images.githubusercontent.com/3920290/75171571-be83c500-5723-11ea-8a50-504cc2ae1109.png)
+# ![microui](https://github.com/user-attachments/assets/9fd5ef76-73f7-4bc3-a381-27bb428f52c5)
+
 A *tiny*, portable, immediate-mode UI library written in Julia
 
 Port from [rxi/microui](https://github.com/rxi/microui)
@@ -13,15 +14,11 @@ Port from [rxi/microui](https://github.com/rxi/microui)
 * Simple layout system
 
 ## Example
-![example](https://user-images.githubusercontent.com/3920290/75187058-2b598800-5741-11ea-9358-38caf59f8791.png)
 ```c
 
 ASAP...
 
 ```
-
-## Screenshot
-![screenshot](https://user-images.githubusercontent.com/3920290/75188642-63ae9580-5744-11ea-9eee-d753ff5c0aa7.png)
 
 ## Notes
 The library expects the user to provide input and handle the resultant drawing
@@ -35,21 +32,3 @@ features will likely not be merged. Bug reports are welcome.
 ## License
 This library is free software; you can redistribute it and/or modify it under
 the terms of the MIT license. See [LICENSE](LICENSE) for details.
-
-## Todo
-**1. Focus and Input Management**
-Manage the tab to navigate between controls.
-
-**2. Layout Management**
-→ Add helpers for more complex layouts (grid, auto-sizing, etc.).
-
-**3. Extensibility**
-Colors and styles are hard-coded in default_style.
-→ Allow for easier loading of themes or customization.
-
-**4. Input Management**
-The input_* functions are very simple.
-→ Add support for scrolling, special keys, copy/paste, etc.
-
-**5. Documentation**
-Add more docstrings on public functions and usage examples.
