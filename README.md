@@ -1,15 +1,8 @@
-<<<<<<< HEAD
-# ![microui](https://github.com/user-attachments/assets/9fd5ef76-73f7-4bc3-a381-27bb428f52c5)
-
-A *tiny*, portable, immediate-mode UI library written in Julia
-=======
 # MicroUI.jl
->>>>>>> adbdb9c (Release 1.0.0)
 
 [![microui](https://user-images.githubusercontent.com/3920290/75171571-be83c500-5723-11ea-8a50-504cc2ae1109.png)](https://github.com/mattdef/MicroUI.jl)
 
 **MicroUI.jl** is a modern Julia implementation of an immediate mode GUI library, inspired by [microui](https://github.com/rxi/microui). Designed to be simple, fast, and easily integrable into your Julia applications.
-Port from [rxi/microui](https://github.com/rxi/microui)
 
 ## 🚀 Features
 
@@ -20,15 +13,11 @@ Port from [rxi/microui](https://github.com/rxi/microui)
 - **Optimized** : Minimal memory allocations during runtime
 - **Portable** : Pure Julia, no external dependencies
 
-<<<<<<< HEAD
-ASAP...
-
-=======
 ## 📦 Installation
 
 ```julia
 using Pkg
-Pkg.add("MicroUI")  # When the package is published
+Pkg.add("MicroUI")  # When the package will be published
 ```
 
 Or for the development version:
@@ -81,7 +70,6 @@ while running
     # Render commands
     render_commands(ctx.command_list)
 end
->>>>>>> adbdb9c (Release 1.0.0)
 ```
 
 ## 🎨 Available Widgets
@@ -92,11 +80,6 @@ end
 text(ctx, "Multi-line text\nwith line breaks")
 label(ctx, "Simple label")
 
-<<<<<<< HEAD
-## License
-This library is free software; you can redistribute it and/or modify it under
-the terms of the MIT license. See [LICENSE](LICENSE) for details.
-=======
 # Buttons
 button(ctx, "Standard button")
 button_ex(ctx, "Custom", ICON_CHECK, OPT_ALIGNCENTER)
@@ -313,4 +296,3 @@ This project is licensed under the **MIT** License. See the [LICENSE](LICENSE) f
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Julia](https://img.shields.io/badge/julia-v1.6+-blue.svg)](https://julialang.org/)
->>>>>>> adbdb9c (Release 1.0.0)
