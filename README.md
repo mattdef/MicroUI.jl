@@ -1,6 +1,9 @@
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Julia](https://img.shields.io/badge/julia-v1.8+-blue.svg)](https://julialang.org/)
+
 # MicroUI.jl
 
-[![microui](https://user-images.githubusercontent.com/3920290/75171571-be83c500-5723-11ea-8a50-504cc2ae1109.png)](https://github.com/mattdef/MicroUI.jl)
+[![MicroUI.jl](https://github.com/user-attachments/assets/b60df2a6-25d2-43a7-bb64-d8c628dd1b91)](https://github.com/mattdef/MicroUI.jl)
 
 **MicroUI.jl** is a modern Julia implementation of an immediate mode GUI library, inspired by [microui](https://github.com/rxi/microui). Designed to be simple, fast, and easily integrable into your Julia applications.
 
@@ -293,6 +296,3 @@ This project is licensed under the **MIT** License. See the [LICENSE](LICENSE) f
 ---
 
 **Ready to create elegant user interfaces in Julia? Get started now!** 🚀
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Julia](https://img.shields.io/badge/julia-v1.6+-blue.svg)](https://julialang.org/)
