@@ -4,10 +4,9 @@ using Test
 # Fonctions utilitaires pour les tests
 # -----------------------------------------------------------------------------
 
-function create_test_context()
+function create_context()
     ctx = Context()
-    ctx.text_width = (font, str) -> length(str) * 8
-    ctx.text_height = font -> 16
+    init!(ctx)
     return ctx
 end
 

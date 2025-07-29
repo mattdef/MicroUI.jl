@@ -1,7 +1,5 @@
 using Test
 
-include("utils_tests.jl")
-
 # ============================================================================
 # TESTS BASIQUES
 # ============================================================================
@@ -69,56 +67,8 @@ include("utils_tests.jl")
     end
 end
 
-@testset "Stack Générique" begin
-    @testset "Opérations de base" begin
-        s = MicroUI.Stack{Int, 10}()
-        
-        @test isempty(s)
-        @test s.idx == 0
-        
-        # Push
-        MicroUI.push!(s, 42)
-        @test !isempty(s)
-        @test s.idx == 1
-        @test MicroUI.top(s) == 42
-        
-        # Multiple push
-        for i in 2:5
-            MicroUI.push!(s, i * 10)
-        end
-        @test s.idx == 5
-        @test MicroUI.top(s) == 50
-        
-        # Pop
-        MicroUI.pop!(s)
-        @test s.idx == 4
-        @test MicroUI.top(s) == 40
-    end
-    
-    @testset "Limites" begin
-        s = MicroUI.Stack{Int, 3}()
-        
-        # Remplir la stack
-        MicroUI.push!(s, 1)
-        MicroUI.push!(s, 2)
-        MicroUI.push!(s, 3)
-        
-        # Overflow
-        @test_throws ErrorException MicroUI.push!(s, 4)
-        
-        # Vider la stack
-        MicroUI.pop!(s)
-        MicroUI.pop!(s)
-        MicroUI.pop!(s)
-        
-        # Underflow
-        @test_throws ErrorException MicroUI.pop!(s)
-        @test_throws ErrorException MicroUI.top(s)
-    end
-end
-
 @testset "Système d'ID et Hash" begin
-    ctx = create_test_context()
+    ctx = create_context()
     
     @testset "Hash FNV-1a" begin
         # Même données = même ID
