@@ -20,7 +20,7 @@ include("utils_tests.jl")
 
     include("regression_tests.jl")  # Inclure les tests de régression
 
-    #include("perf_tests.jl")  # Inclure les tests de performance
+    include("perf_tests.jl")  # Inclure les tests de performance
 
 end
 
