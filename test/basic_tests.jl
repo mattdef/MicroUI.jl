@@ -4,7 +4,7 @@ using Test
 # TESTS BASIQUES
 # ============================================================================
 
-@testset "Types et Structures de Base" begin
+@testset "Basic Types and Structs" begin
     @testset "Vec2" begin
         v1 = Vec2(10, 20)
         v2 = Vec2(5, 15)
@@ -41,7 +41,7 @@ using Test
         @test c.a == 255
     end
     
-    @testset "Intersection de rectangles" begin
+    @testset "Rect Intersect" begin
         r1 = Rect(0, 0, 100, 100)
         r2 = Rect(50, 50, 100, 100)
         r3 = intersect_rects(r1, r2)
@@ -58,7 +58,7 @@ using Test
         @test r5.h == 0
     end
     
-    @testset "Point dans rectangle" begin
+    @testset "Point inside Rect" begin
         r = Rect(10, 10, 100, 100)
         @test MicroUI.rect_overlaps_vec2(r, Vec2(50, 50)) == true
         @test MicroUI.rect_overlaps_vec2(r, Vec2(5, 5)) == false
@@ -67,7 +67,7 @@ using Test
     end
 end
 
-@testset "Système d'ID et Hash" begin
+@testset "ID system" begin
     ctx = create_context()
     
     @testset "Hash FNV-1a" begin
@@ -81,7 +81,7 @@ end
         @test id1 != id3
     end
     
-    @testset "Stack d'ID" begin
+    @testset "ID Stack" begin
         base_id = get_id(ctx, "base")
         
         push_id!(ctx, "child")

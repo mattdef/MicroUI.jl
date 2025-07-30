@@ -4,7 +4,7 @@ using Test
 # TESTS DES CONTRÔLES
 # ============================================================================
 
-@testset "Contrôles et Widgets" begin
+@testset "Controls et Widgets" begin
 
     @testset "Button Simple" begin
         ctx = create_context()

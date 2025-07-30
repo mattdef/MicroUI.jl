@@ -4,8 +4,8 @@ using Test
 # TESTS DES LAYOUTS
 # ============================================================================
 
-@testset "Système de Layout" begin
-    @testset "Layout basique" begin
+@testset "Layout System" begin
+    @testset "Basic Layout" begin
         ctx = create_context()
         begin_frame(ctx)
         
@@ -32,7 +32,7 @@ using Test
         end_frame(ctx)
     end
     
-    @testset "Layout avec largeurs dynamiques" begin
+    @testset "Dynamic Width Layout" begin
         ctx = create_context()
         begin_frame(ctx)
         
@@ -52,7 +52,7 @@ using Test
         end_frame(ctx)
     end
     
-    @testset "Colonnes imbriquées" begin
+    @testset "Columns" begin
         ctx = create_context()
         begin_frame(ctx)
         
@@ -99,8 +99,8 @@ end
 # TESTS DES CONTAINERS
 # ============================================================================
 
-@testset "Containers et Windows" begin
-    @testset "Window basique" begin
+@testset "Containers and Windows" begin
+    @testset "Basic Window" begin
         ctx = create_context()
         
         begin_frame(ctx)
@@ -118,7 +118,7 @@ end
         end_frame(ctx)
     end
     
-    @testset "Window avec options" begin
+    @testset "Window with options" begin
         ctx = create_context()
         
         begin_frame(ctx)
@@ -251,8 +251,8 @@ end
 # TESTS D'INTÉGRATION
 # ============================================================================
 
-@testset "Tests d'Intégration" begin
-    @testset "Interface complète" begin
+@testset "Tests Integration" begin
+    @testset "Complete Interface" begin
         ctx = create_context()
         
         # État de l'application
@@ -308,7 +308,7 @@ end
         @test length(text_value[]) > 0
     end
     
-    @testset "Gestion focus/hover" begin
+    @testset "focus/hover Management" begin
         ctx = create_context()
         
         begin_frame(ctx)

@@ -4,7 +4,7 @@ using Test
 # TESTS DE RÉGRESSION
 # ============================================================================
 
-@testset "Tests de Régression" begin
+@testset "Regressive Test" begin
 
     @testset "Stack overflow protection" begin
         ctx = create_context()
@@ -27,7 +27,7 @@ using Test
         end_frame(ctx)
     end
     
-    @testset "Window sans end_window" begin
+    @testset "Window without end_window" begin
         ctx = create_context()
         
         # Devrait échouer si on oublie end_window
@@ -46,7 +46,7 @@ using Test
         end
     end
 
-    @testset "Clip rect cohérence" begin
+    @testset "Clip rect coherence" begin
         ctx = create_context()
         
         begin_frame(ctx)
