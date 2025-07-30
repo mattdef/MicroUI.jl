@@ -274,14 +274,14 @@ julia --project -e "using Pkg; Pkg.test()"
 
 - **[User Guide](docs/user-guide.md)** : Complete tutorial
 - **[API Reference](docs/api-reference.md)** : Detailed documentation
-- **[Integration Guide](docs/backend-integration.md)** : Creating a backend
+- **[Integration Guide](docs/backend-integration.md)** : Creating a backend (still working on it)
 - **[Examples](examples/)** : Sample projects
 
 ## 🤝 Community
 
-- **Issues** : [GitHub Issues](https://github.com/your-username/MicroUI.jl/issues)
-- **Discussions** : [GitHub Discussions](https://github.com/your-username/MicroUI.jl/discussions)
-- **Discord** : [Julia Server](https://discord.gg/julia)
+- **Issues** : [GitHub Issues](https://github.com/mattdef/MicroUI.jl/issues)
+- **Discussions** : [GitHub Discussions](https://github.com/mattdef/MicroUI.jl/discussions)
+- **Discord** : [MicroUI.jl Server](https://discord.gg/vfsAZN7p)
 
 ## 📄 License
 
