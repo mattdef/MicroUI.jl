@@ -165,7 +165,7 @@ Tests unitaires pour la gestion des IDs et collisions dans MicroUI
         # Test 15: Stack overflow protection (ne devrait pas planter)
         try
             for i in 1:100  # Dépasser IDSTACK_SIZE si besoin
-                if ctx.id_stack.idx < IDSTACK_SIZE - 1
+                if ctx.id_stack.idx < MicroUI.IDSTACK_SIZE - 1
                     push_id!(ctx, "level$i")
                 else
                     break

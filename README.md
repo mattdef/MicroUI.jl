@@ -1,7 +1,6 @@
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Julia](https://img.shields.io/badge/julia-v1.6+-blue.svg)](https://julialang.org/)
-
 # MicroUI.jl
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Julia](https://img.shields.io/badge/julia-v1.8+-blue.svg)](https://julialang.org/)
 
 [![MicroUI.jl](https://github.com/user-attachments/assets/b60df2a6-25d2-43a7-bb64-d8c628dd1b91)](https://github.com/mattdef/MicroUI.jl)
 
