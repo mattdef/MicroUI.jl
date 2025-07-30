@@ -37,7 +37,7 @@ export push_jump_command!
 # Library version and buffer size constants for optimal performance
 
 """Current version of the MicroUI library"""
-const VERSION = "1.0.0"
+const VERSION = "1.0.1"
 
 """Size of the command buffer in bytes - stores all rendering commands for a frame"""
 const COMMANDLIST_SIZE = 256 * 1024
@@ -844,13 +844,10 @@ const HASH_INITIAL = 0x811c9dc5
 Generate unique ID from string data
 Uses FNV-1a hash algorithm for consistent ID generation
 """
-function get_id(ctx::Context, data::AbstractString)
-    h = ctx.id_stack.idx > 0 ? ctx.id_stack.items[ctx.id_stack.idx] : HASH_INITIAL
-    for byte in codeunits(data)
-        h = (h ⊻ UInt32(byte)) * 0x01000193
-    end
-    ctx.last_id = h
-    return h
+@inline function get_id(ctx::Context, data::AbstractString)
+    base_hash = ctx.id_stack.idx > 0 ? ctx.id_stack.items[ctx.id_stack.idx] : HASH_INITIAL
+    ctx.last_id = hash(data, UInt(base_hash)) % UInt32
+    return ctx.last_id
 end
 
 """

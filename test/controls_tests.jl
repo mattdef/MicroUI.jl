@@ -20,27 +20,23 @@ using Test
         
         # Hover d'abord
         input_mousemove!(ctx, Int(rect.x + 10), Int(rect.y + 10))
-        @info "État après mousemove" mouse_down=ctx.mouse_down
         
         # Frame 2: Établir hover
         begin_frame(ctx)
         if begin_window(ctx, "Test", Rect(0, 0, 200, 200)) != 0
             button(ctx, "Test Button")
-            @info "Après hover frame" hover=ctx.hover mouse_down=ctx.mouse_down
             end_window(ctx)
         end
         end_frame(ctx)
         
         # Maintenant cliquer
         input_mousedown!(ctx, Int(rect.x + 10), Int(rect.y + 10), MicroUI.MOUSE_LEFT)
-        @info "État après mousedown" mouse_down=ctx.mouse_down mouse_pressed=ctx.mouse_pressed
         
         # Frame 3: Détecter clic
         begin_frame(ctx)
         clicked = false
         if begin_window(ctx, "Test", Rect(0, 0, 200, 200)) != 0
             res = button(ctx, "Test Button")
-            @info "Après click frame" hover=ctx.hover focus=ctx.focus res=res
             if res & Int(MicroUI.RES_SUBMIT) != 0
                 clicked = true
             end
@@ -49,7 +45,6 @@ using Test
         end_frame(ctx)
 
         input_mouseup!(ctx, Int(rect.x + 10), Int(rect.y + 10), MicroUI.MOUSE_LEFT)
-        @info "État après mouseup" mouse_down=ctx.mouse_down
         
         @test clicked == true
     end
@@ -172,7 +167,6 @@ using Test
         begin_frame(ctx)
         if begin_window(ctx, "Test", Rect(0, 0, 200, 200)) != 0
             res = slider!(ctx, value, 0.0f0, 10.0f0)
-            @info "Slider test" initial=initial new_value=value[] rect=rect new_x=new_x
             @test value[] > initial
             @test value[] <= 10.0f0
             @test res & Int(MicroUI.RES_CHANGE) != 0

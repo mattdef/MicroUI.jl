@@ -9,7 +9,11 @@ using Test
     @testset "Contexte Creation" begin
         t = @benchmark create_context()
         # Le contexte devrait être créé rapidement
-        @test mean(t).time < 1_000_000  # < 1ms
+
+        res_ns = mean(t).time
+        println("-- Context Performance --")
+        println("  • Time: $(round(Int, res_ns)) ns")
+        @test res_ns < 1_000_000  # < 1ms
     end
     
     @testset "Empty Frame" begin
@@ -18,7 +22,11 @@ using Test
             begin_frame($ctx)
             end_frame($ctx)
         end
-        @test mean(t).time < 100_000  # < 0.1ms
+
+        res_ns = mean(t).time
+        println("-- Frame Performance --")
+        println("  • Time: $(round(Int, res_ns)) ns")
+        @test res_ns < 100_000  # < 0.1ms
     end
     
     @testset "Simple Window" begin
@@ -31,7 +39,11 @@ using Test
             end
             end_frame($ctx)
         end
-        @test mean(t).time < 500_000  # < 0.5ms
+
+        res_ns = mean(t).time
+        println("-- Simple Interface Performance --")
+        println("  • Time: $(round(Int, res_ns)) ns")
+        @test res_ns < 500_000  # < 0.5ms
     end
     
     @testset "Complex Interface" begin
@@ -59,7 +71,11 @@ using Test
             end
             end_frame($ctx)
         end
-        @test mean(t).time < 5_000_000  # < 5ms pour interface complexe
+
+        res_ns = mean(t).time
+        println("-- Complex Interface Performance --")
+        println("  • Time: $(round(Int, res_ns)) ns")
+        @test res_ns < 5_000_000  # < 5ms pour interface complexe
     end
     
     @testset "Stress test - Many Windows" begin
@@ -76,7 +92,10 @@ using Test
             end_frame($ctx)
         end
         # Même avec 20 fenêtres, devrait rester performant
-        @test mean(t).time < 10_000_000  # < 10ms
+        res_ns = mean(t).time
+        println("-- Stress Test Performance --")
+        println("  • Display 20 windows: $(round(Int, res_ns)) ns")
+        @test res_ns < 10_000_000  # < 10ms
     end
     
     @testset "Perf allocations" begin
@@ -93,15 +112,13 @@ using Test
         end
         
         # Tester chaque partie séparément
-        @info "begin_frame" alloc=@allocated begin_frame(ctx)
-        
-        @info "begin_window" alloc=@allocated begin_window(ctx, "Test", Rect(0, 0, 200, 200))
-        
-        @info "button" alloc=@allocated button(ctx, "Test")
-        
-        @info "end_window" alloc=@allocated end_window(ctx)
-        
-        @info "end_frame" alloc=@allocated end_frame(ctx)
+        println("-- Memory Allocations Performance --")
+        println("  • begin_frame: $(@allocated begin_frame(ctx)) bytes")
+        println("  • begin_window: $(@allocated begin_window(ctx, "Test", Rect(0, 0, 200, 200))) bytes")
+        println("  • button: $(@allocated button(ctx, "Test")) bytes")
+        println("  • end_window: $(@allocated end_window(ctx)) bytes")
+        println("  • end_frame: $(@allocated end_frame(ctx)) bytes")
+
     end
 
     # Test de performance basique
@@ -120,7 +137,8 @@ using Test
         elapsed = time() - start_time
         res = n_ids / elapsed
         
-        @info "Performance (IDs/seconde): " ids_per_second=@allocated round(Int, res)
+        println("-- IDs Performance --")
+        println("  • IDs/second: $(round(Int, res))")
         @test res > 100000  # Au moins 100k IDs/sec
     end
 
@@ -166,7 +184,7 @@ using Test
         write_speed = commands_read / write_time
         read_speed = commands_read / read_time
         
-        println("Performance Commands:")
+        println("-- Commands Performance --")
         println("  • Écriture: $(round(Int, write_speed)) cmds/sec")
         println("  • Lecture: $(round(Int, read_speed)) cmds/sec")
         println("  • Buffer utilisé: $(ctx.command_list.idx) / $(MicroUI.COMMANDLIST_SIZE) bytes")
