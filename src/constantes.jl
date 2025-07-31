@@ -2,7 +2,7 @@
 # Library version and buffer size constants for optimal performance
 
 """Current version of the MicroUI library"""
-const VERSION = "1.0.2"
+const VERSION = "1.1.0"
 
 """Size of the command buffer in bytes - stores all rendering commands for a frame"""
 const COMMANDLIST_SIZE = 256 * 1024
