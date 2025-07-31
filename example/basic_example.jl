@@ -11,7 +11,7 @@ function main()
 
     # Variables d'état
     window_open = Ref(true)
-    text_input = Ref("Tapez ici...")
+    text_input = Ref("Tape here...")
     slider_val = Ref(75.0f0)
     checkbox_state = Ref(true)
 
@@ -25,7 +25,7 @@ function main()
             layout_row!(ctx, 2, [150, -1], 0)
             
             layout_begin_column!(ctx)
-                text(ctx, "Colonne de gauche avec du texte qui se répartit automatiquement sur plusieurs lignes.")
+                text(ctx, "Left column with text that automatically splits over multiple lines.")
                 
                 if button(ctx, "Action") & Int(RES_SUBMIT) != 0
                     println("Action déclenchée!")
@@ -34,20 +34,20 @@ function main()
             
             layout_begin_column!(ctx)
                 # Contrôles interactifs
-                checkbox!(ctx, "Option active", checkbox_state)
+                checkbox!(ctx, "Active option", checkbox_state)
                 textbox!(ctx, text_input, 100)
                 slider!(ctx, slider_val, 0.0f0, 100.0f0)
                 
                 # Tree node avec état persistant
-                if begin_treenode(ctx, "Paramètres") & Int(RES_ACTIVE) != 0
-                    label(ctx, "Sous-option 1")
-                    label(ctx, "Sous-option 2")
+                if begin_treenode(ctx, "Settings") & Int(RES_ACTIVE) != 0
+                    label(ctx, "Sub-option 1")
+                    label(ctx, "Sub-option 2")
                     end_treenode(ctx)
                 end
             layout_end_column!(ctx)
             
             # Bouton de fermeture
-            if button(ctx, "Fermer") & Int(RES_SUBMIT) != 0
+            if button(ctx, "Close") & Int(RES_SUBMIT) != 0
                 window_open[] = false
             end
             

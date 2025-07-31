@@ -105,7 +105,11 @@ using Test
         for i in 1:3
             begin_frame(ctx)
             if begin_window(ctx, "Test", Rect(0, 0, 200, 200)) != 0
+                layout_begin_column!(ctx)
+                layout_row!(ctx, 2, [100, 150], 30)
+                layout_end_column!(ctx)
                 button(ctx, "Test")
+                text(ctx, "Ceci est un\n long texte qui\n sera sur plusieurs\n lignes.")
                 end_window(ctx)
             end
             end_frame(ctx)
@@ -115,7 +119,11 @@ using Test
         println("-- Memory Allocations Performance --")
         println("  • begin_frame: $(@allocated begin_frame(ctx)) bytes")
         println("  • begin_window: $(@allocated begin_window(ctx, "Test", Rect(0, 0, 200, 200))) bytes")
+        println("  • layout_begin_column!: $(@allocated layout_begin_column!(ctx)) bytes")
+        println("  • layout_row!: $(@allocated layout_row!(ctx, 2, [100, 150], 30)) bytes")
+        println("  • layout_end_column!: $(@allocated layout_end_column!(ctx)) bytes")
         println("  • button: $(@allocated button(ctx, "Test")) bytes")
+        println("  • text: $(@allocated text(ctx, "Ceci est un\n long texte qui\n sera sur plusieurs\n lignes.")) bytes")
         println("  • end_window: $(@allocated end_window(ctx)) bytes")
         println("  • end_frame: $(@allocated end_frame(ctx)) bytes")
 

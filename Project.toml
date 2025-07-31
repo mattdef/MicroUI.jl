@@ -5,9 +5,13 @@ version = "1.0.1"
 
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+GLFW = "f7f18e0c-5ee9-5ccd-a5bf-e8befd85ed98"
+ModernGL = "66fc600b-dfda-50eb-8b99-91cfa97b1301"
 
 [compat]
 BenchmarkTools = "1.6.0"
+GLFW = "3.4.4"
+ModernGL = "1.1.8"
 julia = "1.9"
 
 [extras]

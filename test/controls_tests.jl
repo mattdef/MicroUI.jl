@@ -6,6 +6,19 @@ using Test
 
 @testset "Controls et Widgets" begin
 
+    @testset "Basic Text" begin
+        ctx = create_context()
+        
+        begin_frame(ctx)
+        if begin_window(ctx, "Test", Rect(0, 0, 200, 200)) != 0
+            text(ctx, "Left column with text that automatically splits over multiple lines.")
+            label(ctx, "Single line text")
+            end_window(ctx)
+        end
+        end_frame(ctx)
+
+    end
+
     @testset "Button Simple" begin
         ctx = create_context()
         
