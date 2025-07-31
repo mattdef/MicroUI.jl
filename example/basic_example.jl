@@ -27,7 +27,7 @@ function main()
             layout_begin_column!(ctx)
                 text(ctx, "Left column with text that automatically splits over multiple lines.")
                 
-                if button(ctx, "Action") & Int(RES_SUBMIT) != 0
+                if button(ctx, "Action") & Int(MicroUI.RES_SUBMIT) != 0
                     println("Action déclenchée!")
                 end
             layout_end_column!(ctx)
@@ -39,7 +39,7 @@ function main()
                 slider!(ctx, slider_val, 0.0f0, 100.0f0)
                 
                 # Tree node avec état persistant
-                if begin_treenode(ctx, "Settings") & Int(RES_ACTIVE) != 0
+                if begin_treenode(ctx, "Settings") & Int(MicroUI.RES_ACTIVE) != 0
                     label(ctx, "Sub-option 1")
                     label(ctx, "Sub-option 2")
                     end_treenode(ctx)
@@ -47,7 +47,7 @@ function main()
             layout_end_column!(ctx)
             
             # Bouton de fermeture
-            if button(ctx, "Close") & Int(RES_SUBMIT) != 0
+            if button(ctx, "Close") & Int(MicroUI.RES_SUBMIT) != 0
                 window_open[] = false
             end
             
@@ -58,7 +58,7 @@ function main()
         end_frame(ctx)
         
         # Rendu (à adapter selon votre backend graphique)
-        render_commands(ctx)
+        # render_commands(ctx)
     end
 
 end
