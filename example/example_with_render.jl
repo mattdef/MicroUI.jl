@@ -5,27 +5,61 @@ include("../src/MicroUI.jl")
 using .MicroUI
 
 
+# Structure pour gérer les glyphes
+mutable struct Glyph
+    texture_id::GLuint
+    width::Int
+    height::Int
+    bearing_x::Int
+    bearing_y::Int
+    advance::Int
+end
+
+# Structure pour gérer les polices
+mutable struct Font
+    glyphs::Dict{Char, Glyph}
+    size::Int
+    
+    Font() = new()
+end
+
+# Cache pour les textures de texte rendu
+mutable struct TextCache
+    cache::Dict{String, GLuint}
+    max_size::Int
+    
+    TextCache(max_size::Int = 100) = new(Dict{String, GLuint}(), max_size)
+end
+
 # Structure pour gérer l'état de l'application
 mutable struct AppState
     window::GLFW.Window
     ctx::MicroUI.Context
     textbox_content::String
     show_popup::Bool
-    prev_mouse_pressed::Bool  # Pour traquer l'état précédent de la souris
+    prev_mouse_pressed::Bool
+    font::Font
+    text_cache::TextCache
     
     AppState() = new()
 end
 
-# Backend de rendu simple pour MicroUI
+# Backend de rendu avec support de texte
 mutable struct GLRenderer
     shader_program::GLuint
+    text_shader_program::GLuint
     vao::GLuint
     vbo::GLuint
+    text_vao::GLuint
+    text_vbo::GLuint
     
     GLRenderer() = new()
 end
 
-# Vertex shader simple pour le rendu 2D
+# Variable globale pour l'état de l'application
+global_app_state = nothing
+
+# Vertex shader pour rectangles
 const VERTEX_SHADER = """
 #version 330 core
 layout (location = 0) in vec2 aPos;
@@ -41,7 +75,7 @@ void main()
 }
 """
 
-# Fragment shader simple
+# Fragment shader pour rectangles
 const FRAGMENT_SHADER = """
 #version 330 core
 in vec4 vertexColor;
@@ -50,6 +84,37 @@ out vec4 FragColor;
 void main()
 {
     FragColor = vertexColor;
+}
+"""
+
+# Vertex shader pour texte
+const TEXT_VERTEX_SHADER = """
+#version 330 core
+layout (location = 0) in vec4 vertex; // <vec2 pos, vec2 tex>
+out vec2 TexCoords;
+
+uniform mat4 projection;
+
+void main()
+{
+    gl_Position = projection * vec4(vertex.xy, 0.0, 1.0);
+    TexCoords = vertex.zw;
+}
+"""
+
+# Fragment shader pour texte
+const TEXT_FRAGMENT_SHADER = """
+#version 330 core
+in vec2 TexCoords;
+out vec4 color;
+
+uniform sampler2D text;
+uniform vec4 textColor;
+
+void main()
+{
+    vec4 sampled = vec4(1.0, 1.0, 1.0, texture(text, TexCoords).r);
+    color = textColor * sampled;
 }
 """
 
@@ -70,20 +135,18 @@ function create_shader(shader_type::GLenum, source::String)
     return shader
 end
 
-function init_renderer(renderer::GLRenderer, width::Int32, height::Int32)
-    # Créer les shaders
-    vertex_shader = create_shader(GL_VERTEX_SHADER, VERTEX_SHADER)
-    fragment_shader = create_shader(GL_FRAGMENT_SHADER, FRAGMENT_SHADER)
+function create_shader_program(vertex_source::String, fragment_source::String)
+    vertex_shader = create_shader(GL_VERTEX_SHADER, vertex_source)
+    fragment_shader = create_shader(GL_FRAGMENT_SHADER, fragment_source)
     
-    # Créer le programme shader
-    renderer.shader_program = glCreateProgram()
-    glAttachShader(renderer.shader_program, vertex_shader)
-    glAttachShader(renderer.shader_program, fragment_shader)
-    glLinkProgram(renderer.shader_program)
+    program = glCreateProgram()
+    glAttachShader(program, vertex_shader)
+    glAttachShader(program, fragment_shader)
+    glLinkProgram(program)
     
     # Vérifier le linkage
     success = GLint[0]
-    glGetProgramiv(renderer.shader_program, GL_LINK_STATUS, success)
+    glGetProgramiv(program, GL_LINK_STATUS, success)
     if success[1] == GL_FALSE
         error("Shader program linking failed")
     end
@@ -92,7 +155,116 @@ function init_renderer(renderer::GLRenderer, width::Int32, height::Int32)
     glDeleteShader(vertex_shader)
     glDeleteShader(fragment_shader)
     
-    # Créer VAO et VBO
+    return program
+end
+
+# Version simplifiée sans FreeType pour éviter les problèmes de compatibilité
+function init_simple_font(size::Int)
+    font = Font()
+    font.size = size
+    font.glyphs = Dict{Char, Glyph}()
+    
+    # Créer des glyphes simples avec des mesures fixes
+    # Dans une vraie implémentation, on chargerait une bitmap font
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+    
+    # Créer une texture simple pour tous les caractères
+    char_width = size ÷ 2
+    char_height = size
+    
+    for c in Char(32):Char(126)  # Caractères imprimables ASCII
+        # Créer une texture simple (un rectangle blanc)
+        texture = GLuint[0]
+        glGenTextures(1, texture)
+        glBindTexture(GL_TEXTURE_2D, texture[1])
+        
+        # Données de texture simple - rectangle blanc
+        if c == ' '
+            # Espace = texture transparente
+            bitmap_data = zeros(UInt8, char_width * char_height)
+        else
+            # Autres caractères = rectangle blanc simple
+            bitmap_data = fill(UInt8(255), char_width * char_height)
+        end
+        
+        glTexImage2D(
+            GL_TEXTURE_2D, 0, GL_RED, char_width, char_height, 0,
+            GL_RED, GL_UNSIGNED_BYTE, bitmap_data
+        )
+        
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        
+        glyph = Glyph(
+            texture[1],
+            char_width,
+            char_height,
+            0,
+            char_height,
+            char_width
+        )
+        
+        font.glyphs[c] = glyph
+    end
+    
+    return font
+end
+
+function load_glyph!(font::Font, char::Char)
+    # Dans cette version simplifiée, tous les glyphes sont pré-chargés
+    # Si le caractère n'existe pas, on utilise un glyphe par défaut
+    if !haskey(font.glyphs, char)
+        char_width = font.size ÷ 2
+        char_height = font.size
+        
+        texture = GLuint[0]
+        glGenTextures(1, texture)
+        glBindTexture(GL_TEXTURE_2D, texture[1])
+        
+        bitmap_data = fill(UInt8(255), char_width * char_height)
+        glTexImage2D(
+            GL_TEXTURE_2D, 0, GL_RED, char_width, char_height, 0,
+            GL_RED, GL_UNSIGNED_BYTE, bitmap_data
+        )
+        
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        
+        glyph = Glyph(texture[1], char_width, char_height, 0, char_height, char_width)
+        font.glyphs[char] = glyph
+    end
+end
+
+function measure_text(font::Font, text::String)
+    width = 0
+    height = font.size
+    
+    for char in text
+        if haskey(font.glyphs, char)
+            glyph = font.glyphs[char]
+            width += glyph.advance
+            height = max(height, glyph.height)
+        else
+            # Caractère non trouvé, utiliser une largeur par défaut
+            width += font.size ÷ 2
+        end
+    end
+    
+    return (width, height)
+end
+
+function init_renderer(renderer::GLRenderer, width::Int, height::Int)
+    # Créer le programme shader pour les rectangles
+    renderer.shader_program = create_shader_program(VERTEX_SHADER, FRAGMENT_SHADER)
+    
+    # Créer le programme shader pour le texte
+    renderer.text_shader_program = create_shader_program(TEXT_VERTEX_SHADER, TEXT_FRAGMENT_SHADER)
+    
+    # VAO et VBO pour les rectangles
     vao = GLuint[0]
     vbo = GLuint[0]
     glGenVertexArrays(1, vao)
@@ -104,17 +276,33 @@ function init_renderer(renderer::GLRenderer, width::Int32, height::Int32)
     glBindVertexArray(renderer.vao)
     glBindBuffer(GL_ARRAY_BUFFER, renderer.vbo)
     
-    # Configuration des attributs de vertex
+    # Configuration des attributs de vertex pour rectangles
     glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), Ptr{Cvoid}(0))
     glEnableVertexAttribArray(0)
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), Ptr{Cvoid}(2 * sizeof(GLfloat)))
     glEnableVertexAttribArray(1)
     
-    # Configurer la matrice de projection orthographique
-    glUseProgram(renderer.shader_program)
-    projection_loc = glGetUniformLocation(renderer.shader_program, "projection")
+    # VAO et VBO pour le texte
+    text_vao = GLuint[0]
+    text_vbo = GLuint[0]
+    glGenVertexArrays(1, text_vao)
+    glGenBuffers(1, text_vbo)
     
-    # Matrice de projection orthographique 2D
+    renderer.text_vao = text_vao[1]
+    renderer.text_vbo = text_vbo[1]
+    
+    glBindVertexArray(renderer.text_vao)
+    glBindBuffer(GL_ARRAY_BUFFER, renderer.text_vbo)
+    glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * 6 * 4, C_NULL, GL_DYNAMIC_DRAW)
+    
+    # Configuration des attributs de vertex pour le texte
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), Ptr{Cvoid}(0))
+    glEnableVertexAttribArray(0)
+    
+    glBindBuffer(GL_ARRAY_BUFFER, 0)
+    glBindVertexArray(0)
+    
+    # Configurer la matrice de projection pour les deux shaders
     left, right = 0.0f0, Float32(width)
     bottom, top = Float32(height), 0.0f0
     near, far = -1.0f0, 1.0f0
@@ -126,6 +314,14 @@ function init_renderer(renderer::GLRenderer, width::Int32, height::Int32)
         0.0f0               0.0f0               0.0f0   1.0f0
     ]
     
+    # Projection pour rectangles
+    glUseProgram(renderer.shader_program)
+    projection_loc = glGetUniformLocation(renderer.shader_program, "projection")
+    glUniformMatrix4fv(projection_loc, 1, GL_FALSE, projection)
+    
+    # Projection pour texte
+    glUseProgram(renderer.text_shader_program)
+    projection_loc = glGetUniformLocation(renderer.text_shader_program, "projection")
     glUniformMatrix4fv(projection_loc, 1, GL_FALSE, projection)
     
     # Activer le blending pour la transparence
@@ -160,15 +356,68 @@ function render_rect(renderer::GLRenderer, rect::MicroUI.Rect, color::MicroUI.Co
     glDrawArrays(GL_TRIANGLES, 0, 6)
 end
 
-# Fonction simplifiée pour le rendu de texte (juste un placeholder rectangle)
-function render_text(renderer::GLRenderer, text::String, pos::MicroUI.Vec2, color::MicroUI.Color)
-    # Pour cet exemple, on dessine juste un rectangle coloré à la place du texte
-    # Dans une vraie implémentation, il faudrait utiliser une bibliothèque de rendu de texte
-    text_width = length(text) * 8
-    text_height = 16
+function render_text(renderer::GLRenderer, font::Font, text::String, pos::MicroUI.Vec2, color::MicroUI.Color)
+    # Utiliser le shader de texte
+    glUseProgram(renderer.text_shader_program)
     
-    rect = MicroUI.Rect(Int32(pos.x), Int32(pos.y), Int32(text_width), Int32(text_height))
-    render_rect(renderer, rect, color)
+    # Définir la couleur du texte
+    text_color_loc = glGetUniformLocation(renderer.text_shader_program, "textColor")
+    glUniform4f(text_color_loc, 
+                Float32(color.r)/255.0f0, 
+                Float32(color.g)/255.0f0, 
+                Float32(color.b)/255.0f0, 
+                Float32(color.a)/255.0f0)
+    
+    glActiveTexture(GL_TEXTURE0)
+    glBindVertexArray(renderer.text_vao)
+    
+    x = Float32(pos.x)
+    y = Float32(pos.y)
+    
+    # Rendre chaque caractère
+    for char in text
+        if !haskey(font.glyphs, char)
+            # Charger le glyphe s'il n'existe pas
+            load_glyph!(font, char)
+        end
+        
+        if haskey(font.glyphs, char)
+            glyph = font.glyphs[char]
+            
+            xpos = x + Float32(glyph.bearing_x)
+            ypos = y - Float32(glyph.height - glyph.bearing_y)
+            
+            w = Float32(glyph.width)
+            h = Float32(glyph.height)
+            
+            # Créer les vertices pour ce caractère
+            vertices = Float32[
+                xpos,     ypos + h,   0.0, 0.0,
+                xpos,     ypos,       0.0, 1.0,
+                xpos + w, ypos,       1.0, 1.0,
+                xpos,     ypos + h,   0.0, 0.0,
+                xpos + w, ypos,       1.0, 1.0,
+                xpos + w, ypos + h,   1.0, 0.0
+            ]
+            
+            # Lier la texture du glyphe
+            glBindTexture(GL_TEXTURE_2D, glyph.texture_id)
+            
+            # Mettre à jour le VBO
+            glBindBuffer(GL_ARRAY_BUFFER, renderer.text_vbo)
+            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices)
+            glBindBuffer(GL_ARRAY_BUFFER, 0)
+            
+            # Rendre le glyphe
+            glDrawArrays(GL_TRIANGLES, 0, 6)
+            
+            # Avancer à la position du prochain caractère
+            x += Float32(glyph.advance)
+        end
+    end
+    
+    glBindVertexArray(0)
+    glBindTexture(GL_TEXTURE_2D, 0)
 end
 
 function render_icon(renderer::GLRenderer, icon::MicroUI.IconId, rect::MicroUI.Rect, color::MicroUI.Color)
@@ -176,7 +425,7 @@ function render_icon(renderer::GLRenderer, icon::MicroUI.IconId, rect::MicroUI.R
     render_rect(renderer, rect, color)
 end
 
-function process_commands(renderer::GLRenderer, ctx::MicroUI.Context)
+function process_commands(renderer::GLRenderer, ctx::MicroUI.Context, font::Font)
     iter = MicroUI.CommandIterator(ctx.command_list)
     
     while true
@@ -191,7 +440,7 @@ function process_commands(renderer::GLRenderer, ctx::MicroUI.Context)
         elseif cmd_type == MicroUI.COMMAND_TEXT
             cmd = MicroUI.read_command(ctx.command_list, cmd_offset, MicroUI.TextCommand)
             text = MicroUI.get_string(ctx.command_list, cmd.str_index)
-            render_text(renderer, text, cmd.pos, cmd.color)
+            render_text(renderer, font, text, cmd.pos, cmd.color)
         elseif cmd_type == MicroUI.COMMAND_ICON
             cmd = MicroUI.read_command(ctx.command_list, cmd_offset, MicroUI.IconCommand)
             render_icon(renderer, cmd.id, cmd.rect, cmd.color)
@@ -201,9 +450,6 @@ function process_commands(renderer::GLRenderer, ctx::MicroUI.Context)
         end
     end
 end
-
-# Variable globale pour l'état de l'application
-global_app_state = nothing
 
 # Callbacks GLFW vers MicroUI (version simplifiée)
 function mouse_callback(window, x::Float64, y::Float64)
@@ -260,122 +506,20 @@ function char_callback(window, codepoint)
 end
 
 # Fonction principale pour configurer MicroUI
-function setup_microui_callbacks(ctx::MicroUI.Context)
+function setup_microui_callbacks(ctx::MicroUI.Context, font::Font)
     # Fonction pour mesurer la largeur du texte
-    ctx.text_width = function(font, text::String)
-        return length(text) * 8  # 8 pixels par caractère (monospace simple)
+    ctx.text_width = function(font_ref, text::String)
+        width, height = measure_text(font, text)
+        return width
     end
     
     # Fonction pour obtenir la hauteur du texte
-    ctx.text_height = function(font)
-        return 16  # 16 pixels de hauteur
+    ctx.text_height = function(font_ref)
+        return font.size
     end
     
     # Utiliser la fonction de dessin par défaut
     ctx.draw_frame = MicroUI.default_draw_frame
-end
-
-function init_app()
-    # Initialiser GLFW
-    if !GLFW.Init()
-        error("Failed to initialize GLFW")
-    end
-    
-    # Configurer GLFW
-    GLFW.WindowHint(GLFW.CONTEXT_VERSION_MAJOR, 3)
-    GLFW.WindowHint(GLFW.CONTEXT_VERSION_MINOR, 3)
-    GLFW.WindowHint(GLFW.OPENGL_PROFILE, GLFW.OPENGL_CORE_PROFILE)
-    
-    # Créer la fenêtre
-    window = GLFW.CreateWindow(800, 600, "MicroUI.jl Example")
-    if window == C_NULL
-        GLFW.Terminate()
-        error("Failed to create GLFW window")
-    end
-    
-    GLFW.MakeContextCurrent(window)
-    GLFW.SwapInterval(1)  # V-sync
-    
-    # Créer l'état de l'application
-    app_state = AppState()
-    app_state.window = window
-    app_state.ctx = MicroUI.Context()
-    app_state.textbox_content = "Hello World!"
-    app_state.show_popup = false
-    app_state.prev_mouse_pressed = false
-    
-    # Configurer MicroUI
-    setup_microui_callbacks(app_state.ctx)
-    MicroUI.init!(app_state.ctx)
-    
-    # Assigner la variable globale
-    global global_app_state = app_state
-    
-    # Configurer les callbacks GLFW
-    try
-        GLFW.SetCursorPosCallback(window, mouse_callback)
-        GLFW.SetMouseButtonCallback(window, mouse_button_callback)
-        GLFW.SetKeyCallback(window, key_callback)
-        GLFW.SetCharCallback(window, char_callback)
-    catch e
-        println("Warning: Could not set some GLFW callbacks: ", e)
-    end
-    
-    return app_state
-end
-
-function render_ui(app_state::AppState)
-    ctx = app_state.ctx
-    
-    # Commencer la frame UI
-    MicroUI.begin_frame(ctx)
-    
-    # Fenêtre principale
-    if MicroUI.begin_window(ctx, "Main Window", MicroUI.Rect(50, 50, 400, 300)) != 0
-        
-        # Header
-        MicroUI.header(ctx, "Application Example")
-        
-        # Layout pour label et textbox sur la même ligne
-        MicroUI.layout_row!(ctx, 2, [100, 200], 0)
-        
-        # Label
-        MicroUI.label(ctx, "Input:")
-        
-        # Textbox
-        textbox_ref = Ref(app_state.textbox_content)
-        if (MicroUI.textbox!(ctx, textbox_ref, 100) & Int(MicroUI.RES_CHANGE)) != 0
-            app_state.textbox_content = textbox_ref[]
-        end
-        
-        # Bouton centré
-        MicroUI.layout_row!(ctx, 1, [-1], 0)  # Pleine largeur
-        if (MicroUI.button(ctx, "Show Popup") & Int(MicroUI.RES_SUBMIT)) != 0
-            app_state.show_popup = true
-            MicroUI.open_popup!(ctx, "popup")
-        end
-        
-        MicroUI.end_window(ctx)
-    end
-    
-    # Popup
-    if app_state.show_popup
-        if MicroUI.begin_popup(ctx, "popup") != 0
-            MicroUI.label(ctx, "This is a popup!")
-            MicroUI.text(ctx, "Content: " * app_state.textbox_content)
-            
-            if (MicroUI.button(ctx, "Close") & Int(MicroUI.RES_SUBMIT)) != 0
-                app_state.show_popup = false
-            end
-            
-            MicroUI.end_popup(ctx)
-        else
-            app_state.show_popup = false
-        end
-    end
-    
-    # Terminer la frame UI
-    MicroUI.end_frame(ctx)
 end
 
 function poll_input(app_state::AppState)
@@ -406,15 +550,136 @@ function poll_input(app_state::AppState)
     end
 end
 
+function init_app()
+    # Initialiser GLFW
+    if !GLFW.Init()
+        error("Failed to initialize GLFW")
+    end
+    
+    # Configurer GLFW
+    GLFW.WindowHint(GLFW.CONTEXT_VERSION_MAJOR, 3)
+    GLFW.WindowHint(GLFW.CONTEXT_VERSION_MINOR, 3)
+    GLFW.WindowHint(GLFW.OPENGL_PROFILE, GLFW.OPENGL_CORE_PROFILE)
+    
+    # Créer la fenêtre
+    window = GLFW.CreateWindow(800, 600, "MicroUI.jl with Simple Text Rendering")
+    if window == C_NULL
+        GLFW.Terminate()
+        error("Failed to create GLFW window")
+    end
+    
+    GLFW.MakeContextCurrent(window)
+    GLFW.SwapInterval(1)  # V-sync
+    
+    # Créer l'état de l'application
+    app_state = AppState()
+    app_state.window = window
+    app_state.ctx = MicroUI.Context()
+    app_state.textbox_content = "Hello World!"
+    app_state.show_popup = false
+    app_state.prev_mouse_pressed = false
+    app_state.text_cache = TextCache()
+    
+    # Initialiser une police simple (sans FreeType pour éviter les problèmes)
+    try
+        app_state.font = init_simple_font(16)
+        println("Simple font initialized successfully")
+    catch e
+        println("Error initializing font: ", e)
+        # Créer une police complètement par défaut
+        app_state.font = Font()
+        app_state.font.size = 16
+        app_state.font.glyphs = Dict{Char, Glyph}()
+    end
+    
+    # Configurer MicroUI
+    setup_microui_callbacks(app_state.ctx, app_state.font)
+    MicroUI.init!(app_state.ctx)
+    
+    # Assigner la variable globale
+    global global_app_state = app_state
+    
+    # Configurer les callbacks GLFW
+    try
+        GLFW.SetCursorPosCallback(window, mouse_callback)
+        GLFW.SetMouseButtonCallback(window, mouse_button_callback)
+        GLFW.SetKeyCallback(window, key_callback)
+        GLFW.SetCharCallback(window, char_callback)
+    catch e
+        println("Warning: Could not set some GLFW callbacks: ", e)
+    end
+    
+    return app_state
+end
+
+function render_ui(app_state::AppState)
+    ctx = app_state.ctx
+    
+    # Commencer la frame UI
+    MicroUI.begin_frame(ctx)
+    
+    # Fenêtre principale
+    if MicroUI.begin_window(ctx, "Main Window", MicroUI.Rect(50, 50, 400, 300)) != 0
+        
+        # Header
+        MicroUI.header(ctx, "Application Example with Text Rendering")
+        
+        # Layout pour label et textbox sur la même ligne
+        MicroUI.layout_row!(ctx, 2, [100, 200], 0)
+        
+        # Label
+        MicroUI.label(ctx, "Input:")
+        
+        # Textbox
+        textbox_ref = Ref(app_state.textbox_content)
+        if (MicroUI.textbox!(ctx, textbox_ref, 100) & Int(MicroUI.RES_CHANGE)) != 0
+            app_state.textbox_content = textbox_ref[]
+        end
+        
+        # Ligne avec du texte de démo
+        MicroUI.layout_row!(ctx, 1, [-1], 0)
+        MicroUI.text(ctx, "This text is rendered using simple bitmap textures!")
+        
+        # Bouton centré
+        MicroUI.layout_row!(ctx, 1, [-1], 0)  # Pleine largeur
+        if (MicroUI.button(ctx, "Show Popup") & Int(MicroUI.RES_SUBMIT)) != 0
+            app_state.show_popup = true
+            MicroUI.open_popup!(ctx, "popup")
+        end
+        
+        MicroUI.end_window(ctx)
+    end
+    
+    # Popup
+    if app_state.show_popup
+        if MicroUI.begin_popup(ctx, "popup") != 0
+            MicroUI.label(ctx, "This is a popup with text rendering!")
+            MicroUI.text(ctx, "Content: " * app_state.textbox_content)
+            MicroUI.text(ctx, "Rendered with simple bitmap glyphs!")
+            
+            if (MicroUI.button(ctx, "Close") & Int(MicroUI.RES_SUBMIT)) != 0
+                app_state.show_popup = false
+            end
+            
+            MicroUI.end_popup(ctx)
+        else
+            app_state.show_popup = false
+        end
+    end
+    
+    # Terminer la frame UI
+    MicroUI.end_frame(ctx)
+end
+
 function main()
     app_state = init_app()
     renderer = GLRenderer()
     
     # Initialiser le renderer OpenGL
     width, height = GLFW.GetWindowSize(app_state.window)
-    init_renderer(renderer, width, height)
+    init_renderer(renderer, Int(width), Int(height))
     
-    println("Application démarrée. Utilisez la souris pour interagir avec l'interface.")
+    println("Application démarrée avec rendu de texte simple. Utilisez la souris pour interagir avec l'interface.")
     
     # Boucle principale
     while !GLFW.WindowShouldClose(app_state.window)
@@ -431,7 +696,7 @@ function main()
         render_ui(app_state)
         
         # Traiter les commandes de rendu
-        process_commands(renderer, app_state.ctx)
+        process_commands(renderer, app_state.ctx, app_state.font)
         
         GLFW.SwapBuffers(app_state.window)
         

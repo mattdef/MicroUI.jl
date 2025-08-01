@@ -10,6 +10,17 @@ function create_context()
     return ctx
 end
 
+function create_context_with_callback()
+    ctx = Context()
+    init!(ctx)
+    
+    # Set up minimal callbacks for testing
+    ctx.text_width = (font, str) -> length(str) * 8
+    ctx.text_height = font -> 16
+    
+    return ctx
+end
+
 function simulate_click(ctx::Context, x::Int, y::Int)
     input_mousemove!(ctx, x, y)
     input_mousedown!(ctx, x, y, MOUSE_LEFT)

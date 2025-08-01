@@ -3,6 +3,7 @@ using BenchmarkTools
 
 include("../src/MicroUI.jl")
 using .MicroUI
+using .MicroUI.Macros
 
 include("utils_tests.jl")
 
@@ -21,6 +22,8 @@ include("utils_tests.jl")
     include("regression_tests.jl")  # Inclure les tests de régression
 
     include("perf_tests.jl")  # Inclure les tests de performance
+
+    include("macros_tests.jl") # Inclure les tests de macros
 
 end
 
