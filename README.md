@@ -38,6 +38,7 @@ Pkg.add(url="https://github.com/your-username/MicroUI.jl")
 
 ```julia
 using MicroUI
+using MicroUI.Macros
 
 # Simple application with automatic state management
 ctx = @context begin
