@@ -1,3 +1,5 @@
+import Base: |, &, ~
+
 """
 MicroUI Macro System
 
@@ -103,6 +105,27 @@ function parse_loop_expression(expr)
     end
 end
 
+# ===== BITWISE OPERATORS FOR OPTION ENUM =====
+
+"""
+Define bitwise operators for the Option enum to allow combining options
+like OPT_NORESIZE | OPT_NOTITLE
+"""
+
+
+# Bitwise OR for combining options
+Base.:|(a::MicroUI.Option, b::MicroUI.Option) = UInt16(a) | UInt16(b)
+Base.:|(a::MicroUI.Option, b::UInt16) = UInt16(a) | b
+Base.:|(a::UInt16, b::MicroUI.Option) = a | UInt16(b)
+
+# Bitwise AND for checking options
+Base.:&(a::MicroUI.Option, b::MicroUI.Option) = UInt16(a) & UInt16(b)
+Base.:&(a::MicroUI.Option, b::UInt16) = UInt16(a) & b
+Base.:&(a::UInt16, b::MicroUI.Option) = a & UInt16(b)
+
+# Bitwise NOT for negating options
+Base.:~(a::MicroUI.Option) = ~UInt16(a)
+
 # ===== CORE MACROS =====
 
 """
@@ -138,35 +161,180 @@ macro context(expr)
 end
 
 """
-Window macro for use within @context blocks.
+Enhanced window macro for use within @context blocks with optional parameters.
 
-Creates a window with automatic state management. Must be used inside a @context block.
-The window state persists between frames for stateful widgets.
+Creates a window with automatic state management and flexible parameter system.
+Must be used inside a @context block. Window state persists between frames.
 
-Usage:
+## Syntax Options:
+
+### Basic window (default size and position)
 ```julia
-@context begin
-    @window "Window Title" begin
-        @var message = "Hello"
-    end
+@window "Window Title" begin
+    @text content = "Hello World"
 end
 ```
+
+### Custom rectangle (x, y, width, height)
+```julia
+@window "Custom Window" rect=(50, 50, 600, 400) begin
+    @text content = "Custom positioned and sized window"
+end
+```
+
+### Size only (uses default position)
+```julia
+@window "Large Window" size=(800, 600) begin
+    @text content = "Large window at default position"
+end
+```
+
+### Position only (uses default size)  
+```julia
+@window "Moved Window" pos=(200, 100) begin
+    @text content = "Window moved to custom position"
+end
+```
+
+### Window options
+```julia
+@window "No Resize" opts=OPT_NORESIZE begin
+    @text content = "This window cannot be resized"
+end
+```
+
+### Combined parameters
+```julia
+@window "Full Custom" rect=(10, 10, 500, 350) opts=(OPT_NORESIZE | OPT_NOTITLE) begin
+    @text content = "Fully customized window"
+end
+```
+
+## Parameters:
+- `rect=(x, y, w, h)`: Complete rectangle specification (overrides size/pos)
+- `size=(w, h)`: Window dimensions only
+- `pos=(x, y)`: Window position only  
+- `opts=options`: Window behavior options (see OPT_* constants)
+
+## Default Values:
+- Position: (100, 100)
+- Size: (400, 300)
+- Options: None (standard resizable window with title bar)
 """
-macro window(title, body)
-    mod = __module__
+macro window(title, args...)
+    # Parse arguments to extract parameters and body block
+    local rect_expr = nothing
+    local size_expr = nothing  
+    local pos_expr = nothing
+    local opts_expr = nothing
+    local body = nothing
+    
+    # Find the body block (must be the last argument)
+    for (i, arg) in enumerate(args)
+        if arg isa Expr && arg.head == :block
+            body = arg
+            break
+        end
+    end
+    
+    # Validate that we found a body block
+    if body === nothing
+        error("@window macro requires a body block")
+    end
+    
+    # Parse parameter arguments (all args except the body block)
+    for arg in args
+        # Skip the body block
+        if arg isa Expr && arg.head == :block
+            continue
+        end
+        
+        # Parse parameter assignments
+        if arg isa Expr && arg.head == :(=)
+            param_name = arg.args[1]
+            param_value = arg.args[2]
+            
+            if param_name == :rect
+                rect_expr = param_value
+            elseif param_name == :size
+                size_expr = param_value
+            elseif param_name == :pos
+                pos_expr = param_value
+            elseif param_name == :opts || param_name == :options
+                opts_expr = param_value
+            else
+                error("Unknown window parameter: $param_name. Valid parameters: rect, size, pos, opts")
+            end
+        else
+            error("Invalid window parameter syntax: $arg. Use name=value format (e.g., size=(800,600))")
+        end
+    end
+    
     return quote
+        # Generate unique window ID from title
         local _window_title = $(esc(title))
-        local _window_id    = Symbol("window_", hash(_window_title))
+        local _window_id = Symbol("window_", hash(_window_title))
         local $(esc(:window_state)) = get_widget_state(_window_id)
-
-        # ici, on lit le `ctx` injecté par @context
-        local _window_rect   = Rect(100, 100, 400, 300)
-        local _window_result = begin_window($(esc(:ctx)), _window_title, _window_rect)
-
+        
+        # Build window rectangle from parameters with proper precedence
+        local _window_rect = begin
+            # Default window configuration
+            local default_x, default_y = Int32(100), Int32(100)
+            local default_w, default_h = Int32(400), Int32(300)
+            
+            if $(rect_expr !== nothing)
+                # rect=(x, y, w, h) parameter takes highest priority
+                local rect_tuple = $(esc(rect_expr))
+                if length(rect_tuple) != 4
+                    error("rect parameter must be a 4-tuple (x, y, width, height)")
+                end
+                Rect(Int32(rect_tuple[1]), Int32(rect_tuple[2]), 
+                     Int32(rect_tuple[3]), Int32(rect_tuple[4]))
+            else
+                # Build rectangle from individual size and/or pos parameters
+                local x, y = default_x, default_y
+                local w, h = default_w, default_h
+                
+                # Override position if specified
+                if $(pos_expr !== nothing)
+                    local pos_tuple = $(esc(pos_expr))
+                    if length(pos_tuple) != 2
+                        error("pos parameter must be a 2-tuple (x, y)")
+                    end
+                    x, y = Int32(pos_tuple[1]), Int32(pos_tuple[2])
+                end
+                
+                # Override size if specified
+                if $(size_expr !== nothing)
+                    local size_tuple = $(esc(size_expr))
+                    if length(size_tuple) != 2
+                        error("size parameter must be a 2-tuple (width, height)")
+                    end
+                    w, h = Int32(size_tuple[1]), Int32(size_tuple[2])
+                end
+                
+                Rect(x, y, w, h)
+            end
+        end
+        
+        # Handle window options (convert to proper UInt16 type)
+        local _window_opts = $(opts_expr !== nothing) ? UInt16($(esc(opts_expr))) : UInt16(0)
+        
+        # Create window using appropriate MicroUI function
+        local _window_result = if _window_opts == UInt16(0)
+            # Use simple window creation for default options
+            begin_window($(esc(:ctx)), _window_title, _window_rect)
+        else
+            # Use extended window creation for custom options
+            begin_window_ex($(esc(:ctx)), _window_title, _window_rect, _window_opts)
+        end
+        
+        # Execute window body if window is active and open
         if _window_result != 0 && $(esc(:window_state)).window_open
             $(esc(body))
         end
-
+        
+        # Always end the window to maintain proper stack balance
         end_window($(esc(:ctx)))
         _window_result
     end

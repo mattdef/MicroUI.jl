@@ -182,14 +182,51 @@ using Test
         
         @test_nowarn begin
             @context begin
-                @window "Test Window" begin
-                    test_message = "Hello from window"
+                # Basic window with default settings
+                @window "Main Window" begin
+                    @var welcome = "Welcome to MicroUI!"
+                end
+
+                # Large window for main content
+                @window "Editor" size=(900, 700) begin
+                    @var welcome = "Welcome to MicroUI!"
+                end
+
+                # Tool palette with no resize/title
+                @window "Tools" rect=(10, 10, 200, 400) opts=(OPT_NORESIZE | OPT_NOTITLE) begin
+                    @var welcome = "Welcome to MicroUI!"
+                end
+
+                # Settings dialog that auto-sizes to content
+                @window "Settings" pos=(300, 200) opts=OPT_AUTOSIZE begin
+                    @var welcome = "Welcome to MicroUI!"
+                end
+
+                # Information popup
+                @window "About" size=(350, 200) opts=(OPT_NOCLOSE | OPT_NORESIZE) begin
+                    @var welcome = "Welcome to MicroUI!"
                 end
             end
         end
         
         # Check that window state was created
-        window_id = Symbol("window_", hash("Test Window"))
+        window_id = Symbol("window_", hash("Main Window"))
+        state = get_widget_state(window_id)
+        @test !isnothing(state)
+
+        window_id = Symbol("window_", hash("Editor"))
+        state = get_widget_state(window_id)
+        @test !isnothing(state)
+
+        window_id = Symbol("window_", hash("Tools"))
+        state = get_widget_state(window_id)
+        @test !isnothing(state)
+
+        window_id = Symbol("window_", hash("Settings"))
+        state = get_widget_state(window_id)
+        @test !isnothing(state)
+
+        window_id = Symbol("window_", hash("About"))
         state = get_widget_state(window_id)
         @test !isnothing(state)
     end

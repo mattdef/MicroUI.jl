@@ -1,2 +1,4 @@
 [deps]
 MicroUI = "8c0ede0a-6911-4ca7-83c4-4fa2fa689698"
+GLFW = "f7f18e0c-5ee9-5ccd-a5bf-e8befd85ed98"
+ModernGL = "66fc600b-dfda-50eb-8b99-91cfa97b1301"

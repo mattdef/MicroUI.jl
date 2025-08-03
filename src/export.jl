@@ -17,3 +17,7 @@ export next_command!, push_command!, push_text_command!, bring_to_front!
 export BaseCommand, read_command, TextCommand, RectCommand, CommandIterator, CommandPtr
 export get_string, write_command!, write_string!, IconCommand, JumpCommand
 export push_jump_command!
+
+export OPT_ALIGNCENTER, OPT_ALIGNRIGHT, OPT_NOINTERACT, OPT_NOFRAME
+export OPT_NORESIZE, OPT_NOSCROLL, OPT_NOCLOSE, OPT_NOTITLE  
+export OPT_HOLDFOCUS, OPT_AUTOSIZE, OPT_POPUP, OPT_CLOSED, OPT_EXPANDED

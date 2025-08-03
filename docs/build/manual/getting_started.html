@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Getting Started · MicroUI.jl</title><meta name="title" content="Getting Started · MicroUI.jl"/><meta property="og:title" content="Getting Started · MicroUI.jl"/><meta property="twitter:title" content="Getting Started · MicroUI.jl"/><meta name="description" content="Documentation for MicroUI.jl."/><meta property="og:description" content="Documentation for MicroUI.jl."/><meta property="twitter:description" content="Documentation for MicroUI.jl."/><meta property="og:url" content="https://github.com/mattdef/MicroUI.jl/manual/getting_started.html"/><meta property="twitter:url" content="https://github.com/mattdef/MicroUI.jl/manual/getting_started.html"/><link rel="canonical" href="https://github.com/mattdef/MicroUI.jl/manual/getting_started.html"/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../index.html">Home</a></li><li><span class="tocitem">Manual</span><ul><li class="is-active"><a class="tocitem" href="getting_started.html">Getting Started</a><ul class="internal"><li><a class="tocitem" href="#Installation"><span>Installation</span></a></li><li><a class="tocitem" href="#Understanding-Immediate-Mode-GUIs"><span>Understanding Immediate Mode GUIs</span></a></li><li><a class="tocitem" href="#Your-First-MicroUI-Application"><span>Your First MicroUI Application</span></a></li><li><a class="tocitem" href="#Building-Interactive-Applications"><span>Building Interactive Applications</span></a></li><li><a class="tocitem" href="#Understanding-State-Management"><span>Understanding State Management</span></a></li><li><a class="tocitem" href="#Common-Patterns"><span>Common Patterns</span></a></li><li><a class="tocitem" href="#Layout-System"><span>Layout System</span></a></li><li><a class="tocitem" href="#Error-Handling-and-Debugging"><span>Error Handling and Debugging</span></a></li><li><a class="tocitem" href="#Integration-with-Rendering-Backends"><span>Integration with Rendering Backends</span></a></li><li><a class="tocitem" href="#Tips-for-Success"><span>Tips for Success</span></a></li></ul></li><li><a class="tocitem" href="api_reference.html">API Reference</a></li></ul></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Manual</a></li><li class="is-active"><a href="getting_started.html">Getting Started</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href="getting_started.html">Getting Started</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/mattdef/MicroUI.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/mattdef/MicroUI.jl/blob/main/docs/src/manual/getting_started.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Getting-Started"><a class="docs-heading-anchor" href="#Getting-Started">Getting Started</a><a id="Getting-Started-1"></a><a class="docs-heading-anchor-permalink" href="#Getting-Started" title="Permalink"></a></h1><p>This guide will walk you through creating your first MicroUI application, from basic setup to building interactive interfaces.</p><h2 id="Installation"><a class="docs-heading-anchor" href="#Installation">Installation</a><a id="Installation-1"></a><a class="docs-heading-anchor-permalink" href="#Installation" title="Permalink"></a></h2><pre><code class="language-julia hljs">using Pkg
+Pkg.add(&quot;MicroUI&quot;)</code></pre><h2 id="Understanding-Immediate-Mode-GUIs"><a class="docs-heading-anchor" href="#Understanding-Immediate-Mode-GUIs">Understanding Immediate Mode GUIs</a><a id="Understanding-Immediate-Mode-GUIs-1"></a><a class="docs-heading-anchor-permalink" href="#Understanding-Immediate-Mode-GUIs" title="Permalink"></a></h2><p>MicroUI is an <strong>immediate mode</strong> GUI library, which means:</p><ul><li><strong>No persistent widgets</strong>: UI elements are created fresh each frame</li><li><strong>Direct state management</strong>: You control all application state</li><li><strong>Simple mental model</strong>: UI code runs top-to-bottom, like a regular program</li><li><strong>Easy integration</strong>: No complex event handling or widget hierarchies</li></ul><p>This is different from traditional <strong>retained mode</strong> GUIs where widgets persist between frames.</p><h2 id="Your-First-MicroUI-Application"><a class="docs-heading-anchor" href="#Your-First-MicroUI-Application">Your First MicroUI Application</a><a id="Your-First-MicroUI-Application-1"></a><a class="docs-heading-anchor-permalink" href="#Your-First-MicroUI-Application" title="Permalink"></a></h2><p>Let&#39;s start with the absolute minimum:</p><h3 id="Core-API-Approach"><a class="docs-heading-anchor" href="#Core-API-Approach">Core API Approach</a><a id="Core-API-Approach-1"></a><a class="docs-heading-anchor-permalink" href="#Core-API-Approach" title="Permalink"></a></h3><pre><code class="language-julia hljs">using MicroUI
+
+# Create and initialize context
+ctx = Context()
+init!(ctx)
+
+# Set up text measurement callbacks (required)
+ctx.text_width = (font, str) -&gt; length(str) * 8  # 8 pixels per character
+ctx.text_height = font -&gt; 16                     # 16 pixels line height
+
+# Main UI loop (you&#39;d typically put this in a render loop)
+begin_frame(ctx)
+
+if begin_window(ctx, &quot;Hello MicroUI&quot;, Rect(100, 100, 300, 200)) != 0
+    text(ctx, &quot;Welcome to MicroUI!&quot;)
+    
+    if button(ctx, &quot;Click Me!&quot;) != 0
+        println(&quot;Button was clicked!&quot;)
+    end
+    
+    end_window(ctx)
+end
+
+end_frame(ctx)
+
+# At this point, ctx.command_list contains all rendering commands
+# You would pass these to your rendering backend</code></pre><h3 id="Macro-DSL-Approach-(Recommended-for-Beginners)"><a class="docs-heading-anchor" href="#Macro-DSL-Approach-(Recommended-for-Beginners)">Macro DSL Approach (Recommended for Beginners)</a><a id="Macro-DSL-Approach-(Recommended-for-Beginners)-1"></a><a class="docs-heading-anchor-permalink" href="#Macro-DSL-Approach-(Recommended-for-Beginners)" title="Permalink"></a></h3><pre><code class="language-julia hljs">using MicroUI
+using MicroUI.Macros
+
+ctx = @context begin
+    @window &quot;Hello MicroUI&quot; begin
+        @text welcome = &quot;Welcome to MicroUI!&quot;
+        
+        @button click_btn = &quot;Click Me!&quot;
+        @onclick click_btn begin
+            @popup &quot;Button was clicked!&quot;
+        end
+    end
+end
+
+# ctx now contains all rendering commands</code></pre><p>The macro approach is much more concise and handles state management automatically!</p><h2 id="Building-Interactive-Applications"><a class="docs-heading-anchor" href="#Building-Interactive-Applications">Building Interactive Applications</a><a id="Building-Interactive-Applications-1"></a><a class="docs-heading-anchor-permalink" href="#Building-Interactive-Applications" title="Permalink"></a></h2><h3 id="Example-1:-Counter-Application"><a class="docs-heading-anchor" href="#Example-1:-Counter-Application">Example 1: Counter Application</a><a id="Example-1:-Counter-Application-1"></a><a class="docs-heading-anchor-permalink" href="#Example-1:-Counter-Application" title="Permalink"></a></h3><pre><code class="language-julia hljs">using MicroUI.Macros
+
+# Application runs in a loop (simplified here)
+function run_counter_app()
+    ctx = @context begin
+        @window &quot;Counter App&quot; begin
+            @var counter_value = 0
+            
+            @text display = &quot;Count: $counter_value&quot;
+            
+            @row [100, 100, 100] begin
+                @button increment_btn = &quot;+&quot;
+                @button decrement_btn = &quot;-&quot;  
+                @button reset_btn = &quot;Reset&quot;
+            end
+            
+            @onclick increment_btn begin
+                counter_value += 1
+            end
+            
+            @onclick decrement_btn begin
+                counter_value -= 1
+            end
+            
+            @onclick reset_btn begin
+                counter_value = 0
+            end
+        end
+    end
+    
+    return ctx
+end
+
+# In a real application, you&#39;d call this in your render loop
+ctx = run_counter_app()</code></pre><h3 id="Example-2:-Settings-Panel"><a class="docs-heading-anchor" href="#Example-2:-Settings-Panel">Example 2: Settings Panel</a><a id="Example-2:-Settings-Panel-1"></a><a class="docs-heading-anchor-permalink" href="#Example-2:-Settings-Panel" title="Permalink"></a></h3><pre><code class="language-julia hljs">using MicroUI.Macros
+
+ctx = @context begin
+    @window &quot;Application Settings&quot; begin
+        @text title = &quot;Settings&quot;
+        
+        @panel &quot;Audio&quot; begin
+            @checkbox enable_sound = true
+            @slider volume = 0.8 range(0.0, 1.0)
+            
+            @when enable_sound begin
+                @reactive volume_percent = &quot;Volume: $(round(Int, volume * 100))%&quot;
+                @text volume_display = volume_percent
+            end
+        end
+        
+        @panel &quot;Graphics&quot; begin
+            @checkbox fullscreen = false
+            @checkbox vsync = true
+            @slider brightness = 1.0 range(0.1, 2.0)
+        end
+        
+        @panel &quot;Controls&quot; begin
+            @row [100, 100] begin
+                @button save_btn = &quot;Save&quot;
+                @button cancel_btn = &quot;Cancel&quot;
+            end
+            
+            @onclick save_btn begin
+                @popup &quot;Settings saved!&quot;
+            end
+        end
+    end
+end</code></pre><h2 id="Understanding-State-Management"><a class="docs-heading-anchor" href="#Understanding-State-Management">Understanding State Management</a><a id="Understanding-State-Management-1"></a><a class="docs-heading-anchor-permalink" href="#Understanding-State-Management" title="Permalink"></a></h2><h3 id="Automatic-State-Persistence"><a class="docs-heading-anchor" href="#Automatic-State-Persistence">Automatic State Persistence</a><a id="Automatic-State-Persistence-1"></a><a class="docs-heading-anchor-permalink" href="#Automatic-State-Persistence" title="Permalink"></a></h3><p>With the macro DSL, widget states automatically persist between frames:</p><pre><code class="language-julia hljs"># First frame
+@context begin
+    @window &quot;Persistent State&quot; begin
+        @checkbox remember_me = false  # Initial value
+        @slider volume = 0.5 range(0.0, 1.0)
+    end
+end
+
+# Second frame - values persist!
+@context begin  
+    @window &quot;Persistent State&quot; begin
+        @checkbox remember_me = false  # This initial value is IGNORED
+        @slider volume = 0.5 range(0.0, 1.0)  # User&#39;s actual value is used
+        
+        # Access current values
+        @reactive status = remember_me ? &quot;Remembered&quot; : &quot;Not remembered&quot;
+        @text status_display = status
+    end
+end</code></pre><h3 id="Multiple-Windows"><a class="docs-heading-anchor" href="#Multiple-Windows">Multiple Windows</a><a id="Multiple-Windows-1"></a><a class="docs-heading-anchor-permalink" href="#Multiple-Windows" title="Permalink"></a></h3><p>You can create multiple windows easily:</p><pre><code class="language-julia hljs">@context begin
+    @window &quot;Main Application&quot; begin
+        @text title = &quot;My App&quot;
+        @button settings_btn = &quot;Open Settings&quot;
+    end
+    
+    @window &quot;Settings&quot; begin
+        @text settings_title = &quot;Application Settings&quot;
+        @checkbox dark_mode = false
+        @button close_btn = &quot;Close&quot;
+    end
+    
+    @window &quot;About&quot; begin
+        @text about_text = &quot;MicroUI Application v1.0&quot;
+        @button ok_btn = &quot;OK&quot;
+    end
+end</code></pre><h2 id="Common-Patterns"><a class="docs-heading-anchor" href="#Common-Patterns">Common Patterns</a><a id="Common-Patterns-1"></a><a class="docs-heading-anchor-permalink" href="#Common-Patterns" title="Permalink"></a></h2><h3 id="Conditional-UI-Elements"><a class="docs-heading-anchor" href="#Conditional-UI-Elements">Conditional UI Elements</a><a id="Conditional-UI-Elements-1"></a><a class="docs-heading-anchor-permalink" href="#Conditional-UI-Elements" title="Permalink"></a></h3><pre><code class="language-julia hljs">@context begin
+    @window &quot;Conditional Demo&quot; begin
+        @checkbox show_advanced = false
+        
+        @when show_advanced begin
+            @panel &quot;Advanced Options&quot; begin
+                @slider precision = 0.01 range(0.001, 1.0)
+                @checkbox debug_mode = false
+            end
+        end
+    end
+end</code></pre><h3 id="Dynamic-Lists"><a class="docs-heading-anchor" href="#Dynamic-Lists">Dynamic Lists</a><a id="Dynamic-Lists-1"></a><a class="docs-heading-anchor-permalink" href="#Dynamic-Lists" title="Permalink"></a></h3><pre><code class="language-julia hljs">@context begin
+    @window &quot;Dynamic List&quot; begin
+        @var items = [&quot;Apple&quot;, &quot;Banana&quot;, &quot;Cherry&quot;]
+        
+        @foreach (i, item) in enumerate(items) begin
+            @row [200, 80] begin
+                @text &quot;item_$i&quot; = &quot;$i. $item&quot;
+                @button &quot;delete_$i&quot; = &quot;Delete&quot;
+            end
+            
+            @onclick &quot;delete_$i&quot; begin
+                # In a real app, you&#39;d modify the items list
+                @popup &quot;Would delete: $item&quot;
+            end
+        end
+        
+        @button add_btn = &quot;Add Item&quot;
+        @onclick add_btn begin
+            # In a real app, you&#39;d add to items list
+            @popup &quot;Would add new item&quot;
+        end
+    end
+end</code></pre><h3 id="Input-Forms"><a class="docs-heading-anchor" href="#Input-Forms">Input Forms</a><a id="Input-Forms-1"></a><a class="docs-heading-anchor-permalink" href="#Input-Forms" title="Permalink"></a></h3><pre><code class="language-julia hljs">@context begin
+    @window &quot;User Registration&quot; begin
+        @text title = &quot;Create Account&quot;
+        
+        @textbox username = &quot;&quot; maxlength(32)
+        @textbox email = &quot;&quot; maxlength(100)
+        @textbox password = &quot;&quot; maxlength(64)  # Note: real apps need password masking
+        
+        @checkbox agree_terms = false
+        
+        @row [100, 100] begin
+            @button register_btn = &quot;Register&quot;
+            @button cancel_btn = &quot;Cancel&quot;
+        end
+        
+        @onclick register_btn begin
+            @when agree_terms begin
+                @when (length(username) &gt; 0 &amp;&amp; length(email) &gt; 0) begin
+                    @popup &quot;Registration successful!&quot;
+                end
+            end
+        end
+    end
+end</code></pre><h2 id="Layout-System"><a class="docs-heading-anchor" href="#Layout-System">Layout System</a><a id="Layout-System-1"></a><a class="docs-heading-anchor-permalink" href="#Layout-System" title="Permalink"></a></h2><p>MicroUI provides flexible layout options:</p><h3 id="Row-Layouts"><a class="docs-heading-anchor" href="#Row-Layouts">Row Layouts</a><a id="Row-Layouts-1"></a><a class="docs-heading-anchor-permalink" href="#Row-Layouts" title="Permalink"></a></h3><pre><code class="language-julia hljs">@row [100, 200, -1] begin  # Fixed, Fixed, Fill remaining
+    @button btn1 = &quot;100px&quot;
+    @button btn2 = &quot;200px&quot; 
+    @button btn3 = &quot;Remaining space&quot;
+end</code></pre><h3 id="Column-Layouts"><a class="docs-heading-anchor" href="#Column-Layouts">Column Layouts</a><a id="Column-Layouts-1"></a><a class="docs-heading-anchor-permalink" href="#Column-Layouts" title="Permalink"></a></h3><pre><code class="language-julia hljs">@column begin
+    @text header = &quot;Column Header&quot;
+    @button item1 = &quot;First Item&quot;
+    @button item2 = &quot;Second Item&quot;
+    @button item3 = &quot;Third Item&quot;
+end</code></pre><h3 id="Panels-(Grouped-Content)"><a class="docs-heading-anchor" href="#Panels-(Grouped-Content)">Panels (Grouped Content)</a><a id="Panels-(Grouped-Content)-1"></a><a class="docs-heading-anchor-permalink" href="#Panels-(Grouped-Content)" title="Permalink"></a></h3><pre><code class="language-julia hljs">@panel &quot;Network Settings&quot; begin
+    @checkbox enable_wifi = true
+    @textbox ssid = &quot;MyNetwork&quot;
+    @button connect_btn = &quot;Connect&quot;
+end</code></pre><h2 id="Error-Handling-and-Debugging"><a class="docs-heading-anchor" href="#Error-Handling-and-Debugging">Error Handling and Debugging</a><a id="Error-Handling-and-Debugging-1"></a><a class="docs-heading-anchor-permalink" href="#Error-Handling-and-Debugging" title="Permalink"></a></h2><h3 id="Debug-Widget-States"><a class="docs-heading-anchor" href="#Debug-Widget-States">Debug Widget States</a><a id="Debug-Widget-States-1"></a><a class="docs-heading-anchor-permalink" href="#Debug-Widget-States" title="Permalink"></a></h3><pre><code class="language-julia hljs">@context begin
+    @window &quot;Debug Example&quot; begin
+        @checkbox test_flag = true
+        @slider test_value = 0.5 range(0.0, 1.0)
+        
+        # Debug all widget states for this window
+        @debug_types &quot;Debug Example&quot;
+    end
+end</code></pre><h3 id="Common-Issues"><a class="docs-heading-anchor" href="#Common-Issues">Common Issues</a><a id="Common-Issues-1"></a><a class="docs-heading-anchor-permalink" href="#Common-Issues" title="Permalink"></a></h3><ol><li><strong>Widget state not persisting</strong>: Make sure you&#39;re using the same variable names between frames</li><li><strong>Type errors with sliders</strong>: Use <code>Real</code> type or let the macro handle conversion</li><li><strong>Events not firing</strong>: Remember that <code>@onclick</code> checks for <code>RES_SUBMIT</code> flag</li><li><strong>Layout issues</strong>: Check your row/column specifications</li></ol><h2 id="Integration-with-Rendering-Backends"><a class="docs-heading-anchor" href="#Integration-with-Rendering-Backends">Integration with Rendering Backends</a><a id="Integration-with-Rendering-Backends-1"></a><a class="docs-heading-anchor-permalink" href="#Integration-with-Rendering-Backends" title="Permalink"></a></h2><p>MicroUI generates rendering commands that you pass to your graphics backend:</p><pre><code class="language-julia hljs">ctx = @context begin
+    # ... your UI code ...
+end
+
+# Process rendering commands
+iter = CommandIterator(ctx.command_list)
+while true
+    (has_cmd, cmd_type, cmd_idx) = next_command!(iter)
+    if !has_cmd
+        break
+    end
+    
+    if cmd_type == MicroUI.COMMAND_RECT
+        rect_cmd = read_command(ctx.command_list, cmd_idx, RectCommand)
+        # Draw rectangle: rect_cmd.rect, rect_cmd.color
+    elseif cmd_type == MicroUI.COMMAND_TEXT
+        text_cmd = read_command(ctx.command_list, cmd_idx, TextCommand)
+        text_str = get_string(ctx.command_list, text_cmd.str_index)
+        # Draw text: text_str at text_cmd.pos with text_cmd.color
+    end
+    # ... handle other command types
+end</code></pre><h2 id="Tips-for-Success"><a class="docs-heading-anchor" href="#Tips-for-Success">Tips for Success</a><a id="Tips-for-Success-1"></a><a class="docs-heading-anchor-permalink" href="#Tips-for-Success" title="Permalink"></a></h2><ol><li><strong>Start simple</strong>: Begin with basic windows and buttons, add complexity gradually</li><li><strong>Use the macro DSL</strong>: It&#39;s much easier than the core API for most applications</li><li><strong>Think in frames</strong>: Remember that your UI code runs every frame</li><li><strong>Embrace immediate mode</strong>: Don&#39;t try to cache or optimize prematurely</li><li><strong>Handle state explicitly</strong>: You control all application state, which gives you power and responsibility</li></ol><p>Happy coding with MicroUI! 🚀</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../index.html">« Home</a><a class="docs-footer-nextpage" href="api_reference.html">API Reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.14.1 on <span class="colophon-date" title="Sunday 3 August 2025 23:12">Sunday 3 August 2025</span>. Using Julia version 1.11.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
