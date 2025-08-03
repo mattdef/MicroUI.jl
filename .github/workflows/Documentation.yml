@@ -48,5 +48,6 @@ jobs:
         run: |
           using Documenter: DocMeta, doctest
           using MicroUI
+          using MicroUI.Macros
           DocMeta.setdocmeta!(MicroUI, :DocTestSetup, :(using MicroUI); recursive=true)
           doctest(MicroUI)
