@@ -410,6 +410,7 @@ module Macros
     export @when, @foreach, @onclick, @popup, @reactive
     export @column, @row, @panel, @close_window, @open_window
     export @debug_types, @state, @frame
+    export @tab, @tabbar
     export get_widget_state, clear_widget_states!, parse_assignment
     export WidgetState
 

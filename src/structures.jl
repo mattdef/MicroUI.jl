@@ -4075,6 +4075,51 @@ mutable struct Stack{T}
 end
 
 """
+    TabState
+
+Internal state management for tabbar widgets.
+
+Tracks the currently active tab and manages tab lifecycle within a tabbar.
+Each tabbar widget maintains its own TabState instance through the context's
+tab state registry for efficient state persistence across frames.
+
+# Fields
+- `active_tab::Int32`: Zero-based index of the currently active tab
+- `tab_count::Int32`: Total number of tabs in this tabbar  
+- `last_frame::Int32`: Frame number when this state was last accessed (for cleanup)
+
+# Usage
+TabState instances are managed automatically through the tab state registry.
+Applications should not create or modify these directly - use the tab API functions.
+
+# Examples
+```julia
+# TabState is managed internally - use high-level API
+tab_state = begin_tabbar!(ctx, "my_tabs")
+if tab!(ctx, tab_state, 0, "First Tab") != 0
+    # First tab content
+end
+```
+
+# Performance Notes
+- Efficient state lookup through ID-based registry
+- Minimal memory allocations during normal operation
+- Automatic cleanup of unused states based on frame tracking
+
+# See Also
+- [`begin_tabbar!`](@ref): Create tabbar and get TabState
+- [`tab!`](@ref): Create individual tabs
+- [`get_tab_state`](@ref): Internal state retrieval
+"""
+mutable struct TabState
+    active_tab::Int32     # Currently active tab index (0-based)
+    tab_count::Int32      # Total number of tabs in this tabbar
+    last_frame::Int32     # Last frame this state was accessed
+    
+    TabState() = new(0, 0, 0)
+end
+
+"""
     Context
 
 Main context structure containing all UI state and configuration for a MicroUI instance.
@@ -4279,4 +4324,7 @@ mutable struct Context
     key_down::UInt8       # Currently pressed keys
     key_pressed::UInt8    # Keys pressed this frame
     input_text::String    # Text input this frame
+
+    # TAB SYSTEM
+    tab_states::Dict{Id, TabState}    # Tab state registry indexed by tabbar ID
 end

@@ -5,146 +5,7 @@ include("../src/MicroUI.jl")
 using .MicroUI
 using .MicroUI.Macros
 
-# ===== SIMPLE TEXT RENDERER (unchanged) =====
-
-"""
-Simple text-based renderer for testing and demonstration.
-Renders the UI as ASCII art to the console.
-"""
-mutable struct SimpleTextRenderer
-    width::Int
-    height::Int
-    buffer::Matrix{Char}
-    
-    SimpleTextRenderer(w=80, h=25) = new(w, h, fill(' ', h, w))
-end
-
-"""Clear the renderer buffer"""
-function clear!(renderer::SimpleTextRenderer)
-    fill!(renderer.buffer, ' ')
-end
-
-"""Set a character at specific position"""
-function set_char!(renderer::SimpleTextRenderer, x::Int, y::Int, c::Char)
-    if 1 <= x <= renderer.width && 1 <= y <= renderer.height
-        renderer.buffer[y, x] = c
-    end
-end
-
-"""Draw a string starting at position"""
-function draw_string!(renderer::SimpleTextRenderer, x::Int, y::Int, text::String)
-    for (i, c) in enumerate(text)
-        if x + i - 1 <= renderer.width
-            set_char!(renderer, x + i - 1, y, c)
-        end
-    end
-end
-
-"""Draw a filled rectangle"""
-function draw_rect!(renderer::SimpleTextRenderer, x::Int, y::Int, w::Int, h::Int, char::Char='█')
-    for dy in 0:h-1
-        for dx in 0:w-1
-            if x + dx <= renderer.width && y + dy <= renderer.height
-                set_char!(renderer, x + dx, y + dy, char)
-            end
-        end
-    end
-end
-
-"""Draw a rectangle border"""
-function draw_border!(renderer::SimpleTextRenderer, x::Int, y::Int, w::Int, h::Int)
-    # Corners
-    set_char!(renderer, x, y, '┌')
-    set_char!(renderer, x + w - 1, y, '┐')
-    set_char!(renderer, x, y + h - 1, '└')
-    set_char!(renderer, x + w - 1, y + h - 1, '┘')
-    
-    # Horizontal lines
-    for dx in 1:w-2
-        set_char!(renderer, x + dx, y, '─')
-        set_char!(renderer, x + dx, y + h - 1, '─')
-    end
-    
-    # Vertical lines  
-    for dy in 1:h-2
-        set_char!(renderer, x, y + dy, '│')
-        set_char!(renderer, x + w - 1, y + dy, '│')
-    end
-end
-
-"""Render the buffer to console"""
-function display!(renderer::SimpleTextRenderer)
-    for y in 1:renderer.height
-        for x in 1:renderer.width
-            print(renderer.buffer[y, x])
-        end
-        println()
-    end
-end
-
-# ===== MICROUI COMMAND PROCESSOR (unchanged) =====
-
-"""
-Process MicroUI commands and render them using the text renderer
-"""
-function render_context!(renderer::SimpleTextRenderer, ctx::Context)
-    clear!(renderer)
-    
-    # Create command iterator
-    iter = CommandIterator(ctx.command_list)
-    
-    current_clip = Rect(1, 1, Int32(renderer.width), Int32(renderer.height))
-    
-    while true
-        has_command, cmd_type, offset = next_command!(iter)
-        
-        if !has_command
-            break
-        end
-        
-        if cmd_type == MicroUI.COMMAND_CLIP
-            cmd = read_command(ctx.command_list, offset, ClipCommand)
-            current_clip = cmd.rect
-            
-        elseif cmd_type == MicroUI.COMMAND_RECT
-            cmd = read_command(ctx.command_list, offset, RectCommand)
-            char = cmd.color.r > 128 ? '█' : '░'
-            draw_rect!(renderer, 
-                      max(1, Int(cmd.rect.x ÷ 8)), 
-                      max(1, Int(cmd.rect.y ÷ 16)), 
-                      max(1, Int(cmd.rect.w ÷ 8)), 
-                      max(1, Int(cmd.rect.h ÷ 16)), 
-                      char)
-            
-        elseif cmd_type == MicroUI.COMMAND_TEXT
-            cmd = read_command(ctx.command_list, offset, TextCommand)
-            text = get_string(ctx.command_list, cmd.str_index)
-            draw_string!(renderer,
-                        max(1, Int(cmd.pos.x ÷ 8)), 
-                        max(1, Int(cmd.pos.y ÷ 16)), 
-                        text)
-            
-        elseif cmd_type == MicroUI.COMMAND_ICON
-            cmd = read_command(ctx.command_list, offset, IconCommand)
-            icon_char = if cmd.id == MicroUI.ICON_CLOSE
-                '✕'
-            elseif cmd.id == MicroUI.ICON_CHECK
-                '✓'
-            elseif cmd.id == MicroUI.ICON_COLLAPSED
-                '▶'
-            elseif cmd.id == MicroUI.ICON_EXPANDED
-                '▼'
-            else
-                '?'
-            end
-            
-            set_char!(renderer, 
-                     max(1, Int(cmd.rect.x ÷ 8)), 
-                     max(1, Int(cmd.rect.y ÷ 16)), 
-                     icon_char)
-        end
-    end
-end
+include("text_renderer.jl")
 
 # ===== DEMO APPLICATIONS USING MACROS =====
 
@@ -158,59 +19,61 @@ function demo_application()
     renderer = SimpleTextRenderer(70, 25)
     
     # 🎯 NEW APPROACH: Create context once
-    ctx = @context begin
+    ctx = create_context()
     
     # Simulate multiple frames
-        for frame in 1:3
-            println("\\n📺 Frame $frame:")
-            println("-" ^ 30)
-            
-            # 🎯 Use @frame for each frame with existing context
-            @frame begin
-                @window "Simple Demo" begin
-                    # Variables managed by macro system
-                    @var greeting = "Hello, Julia!"
-                    @var counter = frame * 2  # Simulate increasing counter
-                    @var enable_feature = frame > 1  # Enable after frame 1
-                    @var volume = 0.3 + (frame * 0.2)  # Simulate changing volume
-                    
-                    # Display content using macros
-                    @text greeting_display = greeting
-                    @simple_label counter_display = "Click count: $counter"
-                    
-                    # Interactive elements
-                    @button click_btn = "Click me!"
-                    
-                    # Checkbox
-                    @checkbox feature_checkbox = enable_feature
-                    
-                    # Slider  
-                    @slider volume_slider = volume range(0.0, 1.0)
-                    
-                    # Conditional content using @when
-                    @when enable_feature begin
-                        @reactive volume_percent = round(volume * 100, digits=1)
-                        @simple_label volume_display = "Volume: $(volume_percent)%"
-                    end
+    for frame in 1:3
+        println("📺 Frame $frame:")
+        println("-" ^ 30)
+        
+        # 🎯 Use @frame for each frame with existing context
+        @frame ctx begin
+            @window "Simple Demo" begin
+                # Variables managed by macro system
+                @var greeting = "Hello, Julia!"
+                @var counter = frame * 2  # Simulate increasing counter
+                @var enable_feature = frame > 1  # Enable after frame 1
+                @var volume = 0.3 + (frame * 0.2)  # Simulate changing volume
+                
+                # Display content using macros
+                @panel "Hello" begin
+                    @text greeting_display = @state(greeting)
                 end
                 
-                # Second window using same context
-                @window "Settings" begin
-                    @simple_label theme_label = "Theme: Dark"
-                    @button save_btn = "Save Configuration"
+                @simple_label counter_display = "Click count: $(@state(counter))"
+                
+                # Interactive elements
+                @button click_btn = "Click me!"
+                
+                # Checkbox
+                @checkbox feature_checkbox = @state(enable_feature)
+                
+                # Slider  
+                @slider volume_slider = @state(volume) range(0.0, 1.0)
+                
+                # Conditional content using @when
+                @when @state(enable_feature) begin
+                    @reactive volume_percent = round(@state(volume) * 100, digits=1)
+                    @simple_label volume_display = "Volume: $(@state(volume_percent))%"
                 end
             end
             
-            # ✅ ctx is available here for rendering!
-            render_context!(renderer, ctx)
-            display!(renderer)
-            
-            # Small delay for demo effect
-            sleep(1.0)
+            # Second window using same context
+            @window "Settings" begin
+                @simple_label theme_label = "Theme: Dark"
+                @button save_btn = "Save Configuration"
+            end
         end
+        
+        # ✅ ctx is available here for rendering!
+        render_context!(renderer, ctx)
+        display!(renderer)
+        
+        # Small delay for demo effect
+        sleep(1.0)
     end
     
-    println("\\n✅ New macro approach demo completed!")
+    println("✅ New macro approach demo completed!")
 end
 
 """
@@ -225,127 +88,126 @@ function interactive_demo()
     renderer = SimpleTextRenderer(70, 30)
     
     # 🎯 NEW APPROACH: Create context once, reuse for all frames
-    ctx = @context_no_frame begin
-        # Context is ready, no frames here
-        
-        # Global state variables
-        user_started = false
-        enable_feature = false
-        volume_value = 0.5
-        running = true
-        
-        while running
-            # 🎯 Use @frame for each iteration
-            @frame begin
-                @window "Interactive Demo" begin
-                    @simple_label title = "🎮 Interactive MicroUI Demo (Optimized)"
+    ctx = create_context()
+    # Context is ready, no frames here
+    
+    # Global state variables
+    user_started = false
+    enable_feature = false
+    volume_value = 0.5
+    running = true
+    
+    while running
+        # 🎯 Use @frame for each iteration
+        @frame ctx begin
+            @window "Interactive Demo" begin
+                @simple_label title = "🎮 Interactive MicroUI Demo (Optimized)"
+                
+                # Status panel
+                @panel "Status" begin
+                    @reactive status_text = user_started ? "🟢 Running" : "🔴 Stopped"
+                    @simple_label status_display = "Status: $(@state(status_text))"
                     
-                    # Status panel
-                    @panel "Status" begin
-                        @reactive status_text = user_started ? "🟢 Running" : "🔴 Stopped"
-                        @simple_label status_display = "Status: $(@state(status_text))"
-                        
-                        @reactive slider_percent = round(Int, volume_value * 100)
-                        @simple_label value_display = "Value: $(@state(slider_percent))%"
-                        
-                        @when enable_feature begin
-                            @simple_label auto_display = "🤖 Auto mode: ON"
-                        end
-                    end
+                    @reactive slider_percent = round(Int, volume_value * 100)
+                    @simple_label value_display = "Value: $(@state(slider_percent))%"
                     
-                    # Controls panel
-                    @panel "Controls" begin
-                        @row [80, 80, 80] begin
-                            @button start_btn = "Start"
-                            @button stop_btn = "Stop"  
-                            @button quit_btn = "Quit"
-                        end
-                        
-                        @checkbox auto_checkbox = enable_feature
-                        @slider value_slider = volume_value range(0.0, 1.0)
-                        
-                        # Event handling with @onclick
-                        @onclick start_btn begin
-                            user_started = true
-                            println("✅ Started!")
-                        end
-                        
-                        @onclick stop_btn begin
-                            user_started = false
-                            println("⏹️ Stopped!")
-                        end
-                        
-                        @onclick quit_btn begin
-                            running = false
-                            println("👋 Goodbye!")
-                        end
-                    end
-                    
-                    # Help panel
-                    @panel "Help" begin
-                        @simple_label help1 = "Optimized: Context reuse + @frame macro"
-                        @simple_label help2 = "• start, stop, quit"
-                        @simple_label help3 = "• toggle (auto mode)"
-                        @simple_label help4 = "• slider <0.0-1.0>"
+                    @when enable_feature begin
+                        @simple_label auto_display = "🤖 Auto mode: ON"
                     end
                 end
-            end
-            
-            # Update global state from UI state (reactive sync)
-            window_state = get_widget_state(Symbol("window_", hash("Interactive Demo")))
-            if haskey(window_state.refs, :auto_checkbox)
-                enable_feature = window_state.refs[:auto_checkbox][]
-            end
-            if haskey(window_state.refs, :value_slider)
-                volume_value = window_state.refs[:value_slider][]
-            end
-            
-            # ✅ ctx is available here for rendering!
-            render_context!(renderer, ctx)
-            display!(renderer)
-            
-            # Get user input
-            print("\\n> ")
-            input = strip(readline())
-            
-            # Process commands
-            if input == "start"
-                user_started = true
-                println("✅ Started!")
-            elseif input == "stop"
-                user_started = false
-                println("⏹️ Stopped!")
-            elseif input == "toggle"
-                enable_feature = !enable_feature
-                println("🔄 Auto mode: $(enable_feature ? "ON" : "OFF")")
-            elseif startswith(input, "slider ")
-                try
-                    value = parse(Float64, input[8:end])
-                    if 0.0 <= value <= 1.0
-                        volume_value = value
-                        println("🎚️ Slider set to $value")
-                    else
-                        println("❌ Value must be between 0.0 and 1.0")
+                
+                # Controls panel
+                @panel "Controls" begin
+                    @row [80, 80, 80] begin
+                        @button start_btn = "Start"
+                        @button stop_btn = "Stop"  
+                        @button quit_btn = "Quit"
                     end
-                catch
-                    println("❌ Invalid number format")
+                    
+                    @checkbox auto_checkbox = enable_feature
+                    @slider value_slider = volume_value range(0.0, 1.0)
+                    
+                    # Event handling with @onclick
+                    @onclick start_btn begin
+                        user_started = true
+                        println("✅ Started!")
+                    end
+                    
+                    @onclick stop_btn begin
+                        user_started = false
+                        println("⏹️ Stopped!")
+                    end
+                    
+                    @onclick quit_btn begin
+                        running = false
+                        println("👋 Goodbye!")
+                    end
                 end
-            elseif input == "quit"
-                running = false
-                println("👋 Goodbye!")
-            elseif input == ""
-                continue
-            else
-                println("❌ Unknown command: $input")
+                
+                # Help panel
+                @panel "Help" begin
+                    @simple_label help1 = "Optimized: Context reuse + @frame macro"
+                    @simple_label help2 = "• start, stop, quit"
+                    @simple_label help3 = "• toggle (auto mode)"
+                    @simple_label help4 = "• slider <0.0-1.0>"
+                end
             end
-            
-            # Auto-update slider in auto mode
-            if enable_feature
-                volume_value = mod(volume_value + 0.1, 1.0)
-            end
-            
-            println()
         end
+        
+        # Update global state from UI state (reactive sync)
+        window_state = get_widget_state(Symbol("window_", hash("Interactive Demo")))
+        if haskey(window_state.refs, :auto_checkbox)
+            enable_feature = window_state.refs[:auto_checkbox][]
+        end
+        if haskey(window_state.refs, :value_slider)
+            volume_value = window_state.refs[:value_slider][]
+        end
+        
+        # ✅ ctx is available here for rendering!
+        render_context!(renderer, ctx)
+        display!(renderer)
+        
+        # Get user input
+        print("\\n> ")
+        input = strip(readline())
+        
+        # Process commands
+        if input == "start"
+            user_started = true
+            println("✅ Started!")
+        elseif input == "stop"
+            user_started = false
+            println("⏹️ Stopped!")
+        elseif input == "toggle"
+            enable_feature = !enable_feature
+            println("🔄 Auto mode: $(enable_feature ? "ON" : "OFF")")
+        elseif startswith(input, "slider ")
+            try
+                value = parse(Float64, input[8:end])
+                if 0.0 <= value <= 1.0
+                    volume_value = value
+                    println("🎚️ Slider set to $value")
+                else
+                    println("❌ Value must be between 0.0 and 1.0")
+                end
+            catch
+                println("❌ Invalid number format")
+            end
+        elseif input == "quit"
+            running = false
+            println("👋 Goodbye!")
+        elseif input == ""
+            continue
+        else
+            println("❌ Unknown command: $input")
+        end
+        
+        # Auto-update slider in auto mode
+        if enable_feature
+            volume_value = mod(volume_value + 0.1, 1.0)
+        end
+        
+        println()
     end
     
     # Clean up widget states
@@ -370,10 +232,10 @@ function performance_test()
     time_start = time()
     
     # Create context once
-    ctx_optimized = setup_context()
+    ctx_optimized = create_context()
     
     for frame in 1:100
-        @frame begin
+        @frame ctx_optimized begin
             @window "Performance Test" begin
                 # Create many widgets using @foreach
                 @foreach i in 1:20 begin
@@ -395,12 +257,12 @@ function performance_test()
     time_end = time()
     time_optimized = time_end - time_start
     
-    println("\\n📊 Optimized Approach Performance:")
+    println("📊 Optimized Approach Performance:")
     println("Total time for 100 frames: $(round(time_optimized, digits=3)) seconds")
     println("Average time per frame: $(round(time_optimized / 100 * 1000, digits=2)) ms")
     println("Frames per second: $(round(100 / time_optimized, digits=1)) FPS")
     
-    println("\\n" * "="^50)
+    println("="^50)
     
     # 🎯 APPROACH 2: Original @context approach (for comparison)
     println("Testing original @context approach...")
@@ -432,13 +294,13 @@ function performance_test()
     time_end = time()
     time_original = time_end - time_start
     
-    println("\\n📊 Original @context Performance:")
+    println("📊 Original @context Performance:")
     println("Total time for 100 frames: $(round(time_original, digits=3)) seconds")
     println("Average time per frame: $(round(time_original / 100 * 1000, digits=2)) ms")
     println("Frames per second: $(round(100 / time_original, digits=1)) FPS")
     
     # Performance comparison
-    println("\\n🏁 Performance Comparison:")
+    println("🏁 Performance Comparison:")
     if time_optimized < time_original
         speedup = time_original / time_optimized
         println("✅ New approach is $(round(speedup, digits=2))x FASTER!")
@@ -466,16 +328,14 @@ function advanced_macro_demo()
     renderer = SimpleTextRenderer(80, 35)
     
     # 🎯 NEW APPROACH: Create context once for better performance
-    ctx = @context_no_frame begin
-        # Advanced context setup if needed
-    end
+    ctx = create_context()
     
     # Simulate complex application with multiple windows and state
     for frame in 1:2
-        println("\\n📺 Advanced Frame $frame:")
+        println("📺 Advanced Frame $frame:")
         println("-" ^ 30)
         
-        @frame begin
+        @frame ctx begin
             # Main application window
             @window "Advanced Demo" begin
                 @var app_title = "MicroUI Advanced Features"

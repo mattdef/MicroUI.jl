@@ -4,151 +4,7 @@
 include("../src/MicroUI.jl")
 using .MicroUI
 
-# ===== SIMPLE TEXT RENDERER =====
-
-"""
-Simple text-based renderer for testing and demonstration.
-Renders the UI as ASCII art to the console.
-"""
-mutable struct SimpleTextRenderer
-    width::Int
-    height::Int
-    buffer::Matrix{Char}
-    
-    SimpleTextRenderer(w=80, h=25) = new(w, h, fill(' ', h, w))
-end
-
-"""Clear the renderer buffer"""
-function clear!(renderer::SimpleTextRenderer)
-    fill!(renderer.buffer, ' ')
-end
-
-"""Set a character at specific position"""
-function set_char!(renderer::SimpleTextRenderer, x::Int, y::Int, c::Char)
-    if 1 <= x <= renderer.width && 1 <= y <= renderer.height
-        renderer.buffer[y, x] = c
-    end
-end
-
-"""Draw a string starting at position"""
-function draw_string!(renderer::SimpleTextRenderer, x::Int, y::Int, text::String)
-    # Convert to ASCII-safe string to avoid UTF-8 indexing issues
-    for (i, c) in enumerate(text)
-        if x + i - 1 <= renderer.width
-            set_char!(renderer, x + i - 1, y, c)
-        end
-    end
-end
-
-"""Draw a filled rectangle"""
-function draw_rect!(renderer::SimpleTextRenderer, x::Int, y::Int, w::Int, h::Int, char::Char='█')
-    for dy in 0:h-1
-        for dx in 0:w-1
-            if x + dx <= renderer.width && y + dy <= renderer.height
-                set_char!(renderer, x + dx, y + dy, char)
-            end
-        end
-    end
-end
-
-"""Draw a rectangle border"""
-function draw_border!(renderer::SimpleTextRenderer, x::Int, y::Int, w::Int, h::Int)
-    # Corners
-    set_char!(renderer, x, y, '┌')
-    set_char!(renderer, x + w - 1, y, '┐')
-    set_char!(renderer, x, y + h - 1, '└')
-    set_char!(renderer, x + w - 1, y + h - 1, '┘')
-    
-    # Horizontal lines
-    for dx in 1:w-2
-        set_char!(renderer, x + dx, y, '─')
-        set_char!(renderer, x + dx, y + h - 1, '─')
-    end
-    
-    # Vertical lines  
-    for dy in 1:h-2
-        set_char!(renderer, x, y + dy, '│')
-        set_char!(renderer, x + w - 1, y + dy, '│')
-    end
-end
-
-"""Render the buffer to console"""
-function display!(renderer::SimpleTextRenderer)
-    for y in 1:renderer.height
-        for x in 1:renderer.width
-            print(renderer.buffer[y, x])
-        end
-        println()
-    end
-end
-
-# ===== MICROUI COMMAND PROCESSOR =====
-
-"""
-Process MicroUI commands and render them using the text renderer
-"""
-function render_context!(renderer::SimpleTextRenderer, ctx::Context)
-    clear!(renderer)
-    
-    # Create command iterator
-    iter = CommandIterator(ctx.command_list)
-    
-    current_clip = Rect(1, 1, Int32(renderer.width), Int32(renderer.height))
-    
-    while true
-        has_command, cmd_type, offset = next_command!(iter)
-        
-        if !has_command
-            break
-        end
-        
-        if cmd_type == MicroUI.COMMAND_CLIP
-            cmd = read_command(ctx.command_list, offset, ClipCommand)
-            # Update clipping (simplified - just store for bounds checking)
-            current_clip = cmd.rect
-            
-        elseif cmd_type == MicroUI.COMMAND_RECT
-            cmd = read_command(ctx.command_list, offset, RectCommand)
-            # Convert to renderer coordinates and draw
-            char = cmd.color.r > 128 ? '█' : '░'  # Simple color mapping
-            draw_rect!(renderer, 
-                      max(1, Int(cmd.rect.x ÷ 8)), 
-                      max(1, Int(cmd.rect.y ÷ 16)), 
-                      max(1, Int(cmd.rect.w ÷ 8)), 
-                      max(1, Int(cmd.rect.h ÷ 16)), 
-                      char)
-            
-        elseif cmd_type == MicroUI.COMMAND_TEXT
-            cmd = read_command(ctx.command_list, offset, TextCommand)
-            text = get_string(ctx.command_list, cmd.str_index)
-            # Draw text at position
-            draw_string!(renderer,
-                        max(1, Int(cmd.pos.x ÷ 8)), 
-                        max(1, Int(cmd.pos.y ÷ 16)), 
-                        text)
-            
-        elseif cmd_type == MicroUI.COMMAND_ICON
-            cmd = read_command(ctx.command_list, offset, IconCommand)
-            # Draw simple icon representation
-            icon_char = if cmd.id == MicroUI.ICON_CLOSE
-                '✕'
-            elseif cmd.id == MicroUI.ICON_CHECK
-                '✓'
-            elseif cmd.id == MicroUI.ICON_COLLAPSED
-                '▶'
-            elseif cmd.id == MicroUI.ICON_EXPANDED
-                '▼'
-            else
-                '?'
-            end
-            
-            set_char!(renderer, 
-                     max(1, Int(cmd.rect.x ÷ 8)), 
-                     max(1, Int(cmd.rect.y ÷ 16)), 
-                     icon_char)
-        end
-    end
-end
+include("text_renderer.jl")
 
 # ===== DEMO APPLICATION STATE =====
 
@@ -160,7 +16,7 @@ mutable struct AppState
     volume::Float32
     user_started::Bool
     
-    AppState() = new(0, "Hello, Julia!", false, 0.5f0, false)
+    AppState() = new(0, "Hello, Julia!", true, 0.5f0, false)
 end
 
 # ===== DEMO APPLICATIONS =====
@@ -173,12 +29,12 @@ function demo_application()
     println("=" ^ 50)
     
     renderer = SimpleTextRenderer(70, 25)
-    ctx = setup_context()
+    ctx = create_context()
     state = AppState()
     
     # Simulate multiple frames
     for frame in 1:3
-        println("\\n📺 Frame $frame:")
+        println("📺 Frame $frame:")
         println("-" ^ 30)
         
         # Setup input (simulate mouse position)
@@ -189,9 +45,12 @@ function demo_application()
         
         # Main window
         if begin_window(ctx, "Simple Demo", Rect(50, 50, 400, 200)) != 0
-            
-            # Display greeting
-            text(ctx, state.greeting)
+
+            layout_row!(ctx, 1, [-1], 30)  # 30px de hauteur pour le texte
+            if begin_panel(ctx, "greeting_panel") != 0
+                text(ctx, state.greeting)
+                end_panel(ctx)
+            end
             
             # Status label
             label(ctx, "Click count: $(state.counter)")
@@ -236,7 +95,7 @@ function demo_application()
         sleep(1.0)
     end
     
-    println("\\n✅ Demo completed!")
+    println("✅ Demo completed!")
 end
 
 """
@@ -248,7 +107,7 @@ function interactive_demo()
     println("=" ^ 50)
     
     renderer = SimpleTextRenderer(70, 30)
-    ctx = setup_context()
+    ctx = create_context()
     state = AppState()
     running = true
     
@@ -395,7 +254,7 @@ function performance_test()
     println("=" ^ 40)
     
     renderer = SimpleTextRenderer(80, 30)
-    ctx = setup_context()
+    ctx = create_context()
     
     # Test widget creation performance
     println("🔥 Testing widget creation performance...")
@@ -445,6 +304,110 @@ function performance_test()
     display!(renderer)
 end
 
+"""
+    test_renderer_alignment() -> Nothing
+
+Test function to compare old and new renderer alignment.
+This helps verify that the coordinate conversion improvements work correctly.
+"""
+function test_renderer_alignment()
+    println("🔧 Testing Renderer Coordinate Alignment")
+    println("=" ^ 50)
+    
+    # Test with both renderers
+    old_renderer = SimpleTextRenderer(70, 25)  # Using your original
+    new_renderer = SimpleTextRenderer(70, 25, char_width=8.0, char_height=16.0)  # Using improved version
+    
+    ctx = create_context()
+    
+    # Create a simple test UI
+    begin_frame(ctx)
+    
+    if begin_window(ctx, "Test Window", Rect(40, 32, 320, 160)) != 0
+        text(ctx, "Alignment Test")
+        
+        if button(ctx, "Test Button") & Int(MicroUI.RES_SUBMIT) != 0
+            println("Button clicked!")
+        end
+        
+        checkbox_ref = Ref(true)
+        checkbox!(ctx, "Test Checkbox", checkbox_ref)
+
+        label(ctx, "Test simple Label")
+        
+        end_window(ctx)
+    end
+    
+    end_frame(ctx)
+    
+    # Test coordinate conversions
+    println("📊 Coordinate Conversion Comparison:")
+    println("-" ^ 40)
+    
+    test_coords = [
+        (0, 0, "Origin"),
+        (40, 32, "Window top-left"),
+        (360, 192, "Window bottom-right"),
+        (200, 100, "Center point")
+    ]
+    
+    for (px, py, desc) in test_coords
+        # Old method (from your original code)
+        old_x = max(1, Int(px ÷ 8))
+        old_y = max(1, Int(py ÷ 16))
+        
+        # New method
+        new_x = pixel_to_char_x(new_renderer, px)
+        new_y = pixel_to_char_y(new_renderer, py)
+        
+        println("$desc ($px, $py):")
+        println("  Old: ($old_x, $old_y)")
+        println("  New: ($new_x, $new_y)")
+        println("  Diff: ($(new_x - old_x), $(new_y - old_y))")
+        println()
+    end
+    
+    # Render with improved renderer
+    println("🎨 Rendering with improved renderer:")
+    println("-" ^ 40)
+    render_context!(new_renderer, ctx)
+    display!(new_renderer)
+end
+
+"""
+    debug_renderer_info(renderer::SimpleTextRenderer) -> Nothing
+
+Display debugging information about the renderer configuration.
+"""
+function debug_renderer_info(renderer::SimpleTextRenderer)
+    println("🔍 Renderer Debug Info:")
+    println("Size: $(renderer.width) × $(renderer.height) characters")
+    println("Char size: $(renderer.char_width) × $(renderer.char_height) pixels")
+    
+    # Calculate the effective pixel coverage
+    pixel_width = renderer.width * renderer.char_width
+    pixel_height = renderer.height * renderer.char_height
+    println("Pixel coverage: $(pixel_width) × $(pixel_height) pixels")
+    
+    # Test some common UI element sizes
+    println("Common element conversions:")
+    
+    # Button: typically 80×24 pixels
+    btn_w = pixel_to_char_w(renderer, 80)
+    btn_h = pixel_to_char_h(renderer, 24)
+    println("Button (80×24px) → $(btn_w)×$(btn_h) chars")
+    
+    # Window: typically 320×200 pixels  
+    win_w = pixel_to_char_w(renderer, 320)
+    win_h = pixel_to_char_h(renderer, 200)
+    println("Window (320×200px) → $(win_w)×$(win_h) chars")
+    
+    # Icon: typically 16×16 pixels
+    icon_w = pixel_to_char_w(renderer, 16)
+    icon_h = pixel_to_char_h(renderer, 16)
+    println("Icon (16×16px) → $(icon_w)×$(icon_h) chars")
+end
+
 # ===== MAIN DEMO RUNNER =====
 
 """
@@ -459,9 +422,11 @@ function run_all_demos()
         println("1. Basic Demo (automated)")
         println("2. Interactive Demo") 
         println("3. Performance Test")
-        println("4. Exit")
+        println("4. Renderer Test")
+        println("5. Renderer Debug")
+        println("6. Exit")
         
-        print("\\nEnter choice (1-4): ")
+        print("\\nEnter choice (1-6): ")
         choice = strip(readline())
         
         try
@@ -472,10 +437,15 @@ function run_all_demos()
             elseif choice == "3"
                 performance_test()
             elseif choice == "4"
+                test_renderer_alignment()
+            elseif choice == "5"
+                renderer = SimpleTextRenderer(70, 25)
+                debug_renderer_info(renderer)
+            elseif choice == "6"
                 println("👋 Thanks for trying MicroUI!")
                 break
             else
-                println("❌ Invalid choice. Please enter 1-4.")
+                println("❌ Invalid choice. Please enter 1-6.")
             end
         catch e
             println("❌ Error running demo: $e")

@@ -1014,6 +1014,243 @@ macro slider(assignment, range_expr)
     end
 end
 
+"""
+    @tabbar id body
+
+Create a tabbar with automatic state management and declarative syntax.
+
+Provides a high-level macro interface for creating tabbars that integrates
+seamlessly with the existing MicroUI macro system. Handles state persistence,
+tab indexing, and window state integration automatically.
+
+# Arguments
+- `id`: String identifier for the tabbar (must be unique within the window)
+- `body`: Code block containing [`@tab`](@ref) macro calls
+
+# State Integration
+- **Window State**: Tab selection persists in window state between frames
+- **Automatic Indexing**: Tab indices are managed automatically (sequential from 0)
+- **State Synchronization**: Active tab state synchronized with window state system
+
+# Usage Pattern
+```julia
+@tabbar "main_application_tabs" begin
+    @tab "Dashboard" begin
+        @text welcome = "Welcome to the dashboard!"
+        @button refresh_data = "Refresh Data"
+        
+        @panel "Statistics" begin
+            @var users_online = get_user_count()
+            @simple_label user_display = "Online: \$users_online"
+        end
+    end
+    
+    @tab "User Profile" begin
+        @text profile_title = "User Profile Settings"
+        @var user_name = "John Doe"
+        @var user_email = "john@example.com"
+        
+        @textbox name_field = user_name
+        @textbox email_field = user_email
+        @button save_profile = "Save Changes"
+    end
+    
+    @tab "Application Settings" begin
+        @var enable_notifications = true
+        @var theme_dark_mode = false
+        @var auto_save_interval = 300
+        
+        @checkbox notifications_toggle = enable_notifications
+        @checkbox dark_mode_toggle = theme_dark_mode
+        @number save_interval = auto_save_interval step(30)
+    end
+end
+```
+
+# Advanced Features
+- **Nested Content**: Full support for panels, layouts, and nested widgets
+- **Reactive Variables**: [`@reactive`](@ref) works normally within tabs
+- **Event Handling**: [`@onclick`](@ref) and other event macros supported
+- **State Persistence**: All widget states persist correctly across tab switches
+
+# Performance Optimization
+- **Selective Rendering**: Only active tab content is processed each frame
+- **State Efficiency**: Tab state integrated with existing window state system
+- **Memory Management**: Inactive tab widgets are not created (major memory savings)
+
+# Integration with Existing Macros
+Works seamlessly with all existing MicroUI macros:
+- [`@var`](@ref): Variables scoped to active tab
+- [`@when`](@ref): Conditional rendering within tabs
+- [`@foreach`](@ref): Dynamic content generation in tabs
+- [`@panel`](@ref): Organize tab content with panels
+- [`@row`](@ref)/[`@column`](@ref): Layout within tabs
+
+# Examples
+
+## Simple Tabs
+```julia
+@tabbar "simple_tabs" begin
+    @tab "First" begin
+        @text content = "First tab content"
+    end
+    
+    @tab "Second" begin
+        @text content = "Second tab content"
+        @button action = "Tab Action"
+    end
+end
+```
+
+# Implementation Notes
+- Uses [`begin_tabbar!`](@ref) and [`tab!`](@ref) internally
+- Integrates with window state through unique key generation
+- Automatic tab index management eliminates manual counting
+- Full compatibility with existing macro state management
+
+# See Also
+- [`@tab`](@ref): Individual tab definition macro
+- [`begin_tabbar!`](@ref): Low-level tabbar API
+- [`@window`](@ref): Window creation macro
+- [`@var`](@ref): Variable declaration macro
+"""
+macro tabbar(id, body)
+    return quote
+        # Initialize tabbar and get state manager in escaped scope
+        $(esc(:__tab_state)) = begin_tabbar!($(esc(:ctx)), $(esc(id)))
+        
+        # Integrate with window state system for persistence
+        local tab_key = Symbol("tabbar_", $(esc(id)))
+        if haskey($(esc(:window_state)).variables, tab_key)
+            $(esc(:__tab_state)).active_tab = Int32($(esc(:window_state)).variables[tab_key])
+        end
+        
+        # Initialize tab index counter in escaped scope so @tab can access it
+        $(esc(:__tab_index_counter)) = 0
+        
+        # Execute tab definitions
+        $(esc(body))
+        
+        # Persist active tab state to window state
+        $(esc(:window_state)).variables[tab_key] = Int($(esc(:__tab_state)).active_tab)
+        
+        # Finalize tabbar
+        end_tabbar!($(esc(:ctx)), $(esc(:__tab_state)))
+    end
+end
+
+"""
+    @tab label body
+
+Define an individual tab within a [`@tabbar`](@ref) block.
+
+Creates a tab with automatic index management and conditional content rendering.
+Content is only processed when the tab is active, providing significant
+performance benefits for complex applications.
+
+# Arguments
+- `label`: String label for the tab header
+- `body`: Code block containing tab content (widgets, panels, etc.)
+
+# Automatic Index Management
+Tab indices are managed automatically - no need to specify tab numbers.
+Tabs are indexed sequentially starting from 0 based on declaration order.
+
+# Conditional Rendering
+Tab content is only executed when the tab is active:
+- **Performance**: Inactive tabs don't consume CPU or memory for widget processing
+- **State Management**: Widget states are preserved correctly across tab switches
+- **Resource Efficiency**: Complex computations only occur for active tabs
+
+# Content Scope
+All MicroUI macros work normally within tab content:
+- **Variables**: [`@var`](@ref) creates tab-scoped variables
+- **Widgets**: All widget macros ([`@button`](@ref), [`@text`](@ref), etc.) supported
+- **Layout**: [`@panel`](@ref), [`@row`](@ref), [`@column`](@ref) for organization
+- **Conditional**: [`@when`](@ref) for dynamic content within tabs
+- **Events**: [`@onclick`](@ref) and other event handling macros
+
+# Usage Within @tabbar
+Must be used inside a [`@tabbar`](@ref) block:
+
+```julia
+@tabbar "my_tabs" begin
+    @tab "Home Page" begin
+        @text welcome_message = "Welcome to our application!"
+        @button get_started = "Get Started"
+        
+        @panel "Quick Actions" begin
+            @button new_project = "New Project"
+            @button open_recent = "Open Recent"
+            @button browse_templates = "Browse Templates"
+        end
+    end
+    
+    @tab "User Settings" begin
+        @text settings_header = "Personal Settings"
+        
+        @var user_name = get_current_user_name()
+        @var user_email = get_current_user_email()
+        @var notifications_enabled = true
+        
+        @textbox name_input = user_name
+        @textbox email_input = user_email
+        @checkbox notifications_toggle = notifications_enabled
+        
+        @button save_settings = "Save Settings"
+        @onclick save_settings begin
+            save_user_preferences(user_name, user_email, notifications_enabled)
+            @popup "Settings saved successfully!"
+        end
+    end
+    
+    @tab "Advanced Options" begin
+        @text advanced_header = "Advanced Configuration"
+        
+        @var debug_mode = false
+        @var max_connections = 10
+        @var cache_size = 256
+        
+        @checkbox debug_toggle = debug_mode
+        @number connections_input = max_connections step(1)
+        @number cache_input = cache_size step(16)
+        
+        @when debug_mode begin
+            @text debug_warning = "⚠️ Debug mode affects performance"
+            @button export_logs = "Export Debug Logs"
+        end
+    end
+end
+```
+
+# Performance Characteristics
+- **Zero Cost When Inactive**: No processing overhead for inactive tabs
+- **Instant Switching**: Tab changes are immediate with no loading delay
+- **Memory Efficient**: Inactive tab widgets don't consume memory
+- **State Preservation**: Widget states maintained correctly across switches
+
+# Implementation Notes
+- Uses internal escaped counter for automatic indexing
+- Integrates with [`tab!`](@ref) function for low-level tab management
+- Content block executed conditionally based on tab active state
+- Full compatibility with all existing macro features and state management
+
+# See Also
+- [`@tabbar`](@ref): Tabbar container macro
+- [`tab!`](@ref): Low-level tab creation function
+- [`@var`](@ref): Variable declaration within tabs
+- [`@when`](@ref): Conditional content within tabs
+"""
+macro tab(label, body)
+    return quote
+        if tab!($(esc(:ctx)), $(esc(:__tab_state)), $(esc(:__tab_index_counter)), $(esc(label))) != 0
+            # Tab is active - execute content
+            $(esc(body))
+        end
+        $(esc(:__tab_index_counter)) += 1  # Increment counter for next tab
+    end
+end
+
 # ===== CONTROL FLOW MACROS =====
 
 """

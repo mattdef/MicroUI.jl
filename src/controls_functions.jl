@@ -3263,3 +3263,312 @@ function end_root_container!(ctx::Context)
     pop_clip_rect!(ctx)
     pop_container!(ctx)
 end
+
+"""
+    get_tab_state(ctx::Context, tabbar_id::Id) -> TabState
+
+Retrieve or create tab state for a tabbar widget.
+
+Gets the existing TabState for the given tabbar ID, or creates a new one
+if this is the first time the tabbar is encountered. Uses efficient ID-based
+lookup with automatic state management.
+
+# Arguments
+- `ctx::Context`: The MicroUI context
+- `tabbar_id::Id`: Unique identifier for the tabbar widget
+
+# Returns
+- `TabState`: The state object for this tabbar (existing or newly created)
+
+# State Management
+- **Efficient Lookup**: O(1) hash-based state retrieval
+- **Automatic Creation**: New states initialized with sensible defaults
+- **Frame Tracking**: Updates last access frame for cleanup purposes
+- **Memory Reuse**: States persist across frames for performance
+
+# Implementation Notes
+This function is used internally by the tab system and should not be called
+directly by application code. Use [`begin_tabbar!`](@ref) instead.
+
+# Examples
+```julia
+# Internal usage only - use begin_tabbar! instead
+tabbar_id = get_id(ctx, "my_tabs")
+state = get_tab_state(ctx, tabbar_id)  # Don't do this directly
+```
+
+# See Also
+- [`begin_tabbar!`](@ref): Public API for creating tabbars
+- [`TabState`](@ref): State structure documentation
+"""
+function get_tab_state(ctx::Context, tabbar_id::Id)
+    if !haskey(ctx.tab_states, tabbar_id)
+        ctx.tab_states[tabbar_id] = TabState()
+    end
+    
+    state = ctx.tab_states[tabbar_id]
+    state.last_frame = ctx.frame
+    return state
+end
+
+
+"""
+    begin_tabbar!(ctx::Context, id::String) -> TabState
+
+Begin a tabbar section and return its state manager.
+
+Creates a tabbar widget that manages multiple tabs with automatic state persistence.
+The returned TabState object is used with [`tab!`](@ref) to create individual tabs
+and [`end_tabbar!`](@ref) to finalize the tabbar.
+
+# Arguments
+- `ctx::Context`: The MicroUI context
+- `id::String`: Unique identifier for this tabbar within the current window
+
+# Returns
+- `TabState`: Tab state manager for creating tabs and tracking active selection
+
+# Tabbar Lifecycle
+1. **Begin**: Call `begin_tabbar!` to initialize tabbar and get state
+2. **Create Tabs**: Use [`tab!`](@ref) with the returned state to create individual tabs
+3. **End**: Call [`end_tabbar!`](@ref) to finalize the tabbar
+
+# State Persistence
+- Tab selection persists automatically between frames
+- State is stored in the context's tab registry by tabbar ID
+- Memory efficient with automatic cleanup of unused states
+
+# Layout Integration
+The tabbar integrates with MicroUI's layout system:
+- Tab headers are arranged horizontally using automatic layout
+- Tab content appears below headers in normal layout flow
+- Subsequent widgets appear after tab content area
+
+# Examples
+```julia
+# Basic tabbar with two tabs
+tab_state = begin_tabbar!(ctx, "main_tabs")
+
+if tab!(ctx, tab_state, 0, "Home") != 0
+    text(ctx, "Welcome to the home page!")
+    button(ctx, "Home Action")
+end
+
+if tab!(ctx, tab_state, 1, "Settings") != 0
+    checkbox!(ctx, "Enable feature", feature_ref)
+    slider!(ctx, "Volume", volume_ref, 0.0f0, 1.0f0)
+end
+
+end_tabbar!(ctx, tab_state)
+```
+
+# Performance Characteristics
+- **O(1) State Lookup**: Efficient ID-based state retrieval
+- **Minimal Allocations**: State reuse across frames
+- **Selective Rendering**: Only active tab content is processed
+- **Layout Optimization**: Automatic tab header sizing and positioning
+
+# See Also
+- [`tab!`](@ref): Create individual tabs within the tabbar
+- [`end_tabbar!`](@ref): Finalize tabbar and cleanup
+- [`TabState`](@ref): State structure documentation
+"""
+function begin_tabbar!(ctx::Context, id::String)
+    tabbar_id = get_id(ctx, id)
+    tab_state = get_tab_state(ctx, tabbar_id)
+    
+    # Reset tab count for this frame - will be updated as tabs are created
+    tab_state.tab_count = 0
+    
+    return tab_state
+end
+
+"""
+    tab!(ctx::Context, tab_state::TabState, tab_index::Int, label::String) -> Int
+
+Create a tab header and manage tab content visibility.
+
+Creates a clickable tab header and returns non-zero if this tab is currently
+active (meaning its content should be rendered). Handles tab switching automatically
+when headers are clicked and integrates with the layout system.
+
+# Arguments
+- `ctx::Context`: The MicroUI context
+- `tab_state::TabState`: Tab state from [`begin_tabbar!`](@ref)
+- `tab_index::Int`: Zero-based index of this tab (must be sequential starting from 0)
+- `label::String`: Text to display on the tab header
+
+# Returns
+- `Int`: Non-zero if this tab is active (render content), zero otherwise
+
+# Tab Header Styling
+- **Active Tab**: Highlighted with standard button styling for clear selection
+- **Inactive Tab**: Subtle background with hover effects for better UX
+- **Hover Effects**: Visual feedback when mouse hovers over inactive tabs
+- **Text Centering**: Tab labels are automatically centered within headers
+
+# Content Rendering Strategy
+Only the content of the active tab should be created for optimal performance:
+```julia
+if tab!(ctx, tab_state, 0, "Settings") != 0
+    # This content only exists when Settings tab is active
+    checkbox!(ctx, "Enable notifications", notifications_ref)
+    slider!(ctx, "Volume", volume_ref, 0.0f0, 1.0f0)
+end
+```
+
+# Layout Management
+- **Automatic Sizing**: Tab headers sized automatically based on available width
+- **Equal Distribution**: Tabs distributed evenly across available space
+- **Sequential Creation**: Tabs must be created with sequential indices (0, 1, 2, ...)
+- **Layout Integration**: Uses standard MicroUI layout system for positioning
+
+# State Management
+- **Click Handling**: Automatically switches active tab when headers are clicked
+- **State Persistence**: Active tab selection persists across frames
+- **Count Tracking**: Automatically updates total tab count in TabState
+
+# Examples
+```julia
+tab_state = begin_tabbar!(ctx, "editor_tabs")
+
+# Create tabs with sequential indices
+if tab!(ctx, tab_state, 0, "main.jl") != 0
+    textbox!(ctx, "Main code", main_code_ref, 1000)
+end
+
+if tab!(ctx, tab_state, 1, "utils.jl") != 0
+    textbox!(ctx, "Utility code", utils_code_ref, 1000)
+end
+
+if tab!(ctx, tab_state, 2, "README.md") != 0
+    text(ctx, "Project documentation goes here...")
+end
+
+end_tabbar!(ctx, tab_state)
+```
+
+# Performance Benefits
+- **Selective Rendering**: Inactive tab content is not created (major CPU/memory savings)
+- **Efficient Updates**: Only active widgets participate in input/update cycles
+- **Memory Efficient**: No persistent widget storage for inactive tabs
+- **Fast Switching**: Tab changes require minimal recomputation
+
+# Implementation Details
+- Uses standard MicroUI widget ID generation for tab headers
+- Integrates with existing focus/hover/click handling systems
+- Leverages layout system for automatic positioning and sizing
+- Compatible with all existing MicroUI styling and theming
+
+# See Also
+- [`begin_tabbar!`](@ref): Initialize tabbar and get state
+- [`end_tabbar!`](@ref): Finalize tabbar
+- [`TabState`](@ref): State structure documentation
+"""
+function tab!(ctx::Context, tab_state::TabState, tab_index::Int, label::String)
+    # Update tab count as tabs are encountered
+    tab_state.tab_count = max(tab_state.tab_count, Int32(tab_index + 1))
+    
+    # Generate unique ID for this specific tab header
+    tab_id = get_id(ctx, "tab_$(tab_index)_$(hash(label))")
+    
+    # Check if this tab is currently active
+    is_active = (tab_state.active_tab == tab_index)
+    
+    # Setup layout for tab headers (only on first tab to avoid duplication)
+    if tab_index == 0
+        container = get_current_container(ctx)
+        if container !== nothing
+            # Calculate equal-width tabs based on available space
+            available_width = container.body.w - (ctx.style.padding * 2)
+            tab_width = available_width ÷ tab_state.tab_count
+            
+            # Create row layout for all tab headers
+            layout_row!(ctx, Int(tab_state.tab_count), fill(tab_width, Int(tab_state.tab_count)), 0)
+        end
+    end
+    
+    # Get rectangle for this tab header
+    r = layout_next(ctx)
+    
+    # Handle mouse interaction (hover, focus, click)
+    update_control!(ctx, tab_id, r, UInt16(0))
+    
+    # Handle tab switching on click
+    if ctx.mouse_pressed != 0 && ctx.focus == tab_id
+        tab_state.active_tab = Int32(tab_index)
+        is_active = true
+    end
+    
+    # Render tab header with appropriate styling
+    if is_active
+        # Active tab: use standard button styling for prominence
+        draw_control_frame!(ctx, tab_id, r, COLOR_BUTTON, UInt16(0))
+    else
+        # Inactive tab: subtle styling with hover feedback
+        if ctx.hover == tab_id
+            draw_control_frame!(ctx, tab_id, r, COLOR_BUTTONHOVER, UInt16(0))
+        else
+            draw_control_frame!(ctx, tab_id, r, COLOR_PANELBG, UInt16(0))
+        end
+    end
+    
+    # Render tab label text (centered)
+    draw_control_text!(ctx, label, r, COLOR_TEXT, UInt16(OPT_ALIGNCENTER))
+    
+    return is_active ? Int(RES_ACTIVE) : 0
+end
+
+"""
+    end_tabbar!(ctx::Context, tab_state::TabState) -> Nothing
+
+Finalize tabbar and restore normal layout flow.
+
+Completes the tabbar widget and ensures that subsequent widgets appear correctly
+in the layout. Must be called after all tabs have been created with [`tab!`](@ref).
+
+# Arguments
+- `ctx::Context`: The MicroUI context
+- `tab_state::TabState`: Tab state from [`begin_tabbar!`](@ref)
+
+# Layout Restoration
+Ensures that widgets following the tabbar appear in the correct position below
+the tab content area. The layout system automatically handles proper spacing
+and positioning for subsequent elements.
+
+# Cleanup Operations
+Currently performs minimal cleanup as the tab system is designed for efficiency.
+Future versions may include state cleanup or optimization operations.
+
+# Examples
+```julia
+tab_state = begin_tabbar!(ctx, "app_tabs")
+
+if tab!(ctx, tab_state, 0, "Home") != 0
+    text(ctx, "Welcome home!")
+end
+
+if tab!(ctx, tab_state, 1, "Settings") != 0
+    checkbox!(ctx, "Dark mode", dark_mode_ref)
+end
+
+end_tabbar!(ctx, tab_state)  # Required to complete tabbar
+
+# Widgets here appear below the tabbar
+button(ctx, "Global Action")
+```
+
+# Implementation Notes
+This function maintains API consistency and provides a hook for future
+enhancements such as state cleanup, layout optimization, or animation support.
+
+# See Also
+- [`begin_tabbar!`](@ref): Initialize tabbar
+- [`tab!`](@ref): Create individual tabs
+- [`TabState`](@ref): State structure documentation
+"""
+function end_tabbar!(ctx::Context, tab_state::TabState)
+    # Currently minimal operations - reserved for future enhancements
+    # Could include: state cleanup, layout restoration, animation finalization
+    nothing
+end

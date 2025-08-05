@@ -373,7 +373,8 @@ function Context()
         [Container() for _ in 1:CONTAINERPOOL_SIZE],
         [PoolItem(0, 0) for _ in 1:TREENODEPOOL_SIZE],
         Vec2(0,0), Vec2(0,0), Vec2(0,0), Vec2(0,0),
-        0, 0, 0, 0, ""
+        0, 0, 0, 0, "",
+        Dict{Id, TabState}()
     )
     return ctx
 end
@@ -440,6 +441,79 @@ function init!(ctx::Context)
     ctx.key_down = 0
     ctx.key_pressed = 0
     ctx.input_text = ""
+
+    # Initialize tab system registry
+    ctx.tab_states = Dict{Id, TabState}()
+end
+
+"""
+    create_context(; text_width_fn = nothing, text_height_fn = nothing, setup_fn = nothing)
+
+Create and initialize a MicroUI context for multi-frame applications.
+
+This function creates a reusable MicroUI context that can be used across multiple frames
+for improved performance compared to recreating contexts each frame.
+
+# Arguments
+- `text_width_fn`: Optional custom text width measurement function  
+- `text_height_fn`: Optional custom text height measurement function
+- `setup_fn`: Optional setup function called with the context as argument
+
+# Returns
+- `Context`: Initialized MicroUI context ready for frame processing
+
+# Basic Usage
+
+```julia
+# Simple context with defaults
+ctx = create_context()
+
+# Context with custom text measurement
+ctx = create_context(
+    text_width_fn = (font, str) -> measure_real_text_width(font, str),
+    text_height_fn = font -> get_real_font_height(font)
+)
+
+# Context with setup function
+ctx = create_context(
+    setup_fn = ctx -> begin
+        println("Context \$(objectid(ctx)) initialized")
+        # Additional setup here
+    end
+)
+```
+
+# Performance Benefits
+- **Context reuse**: Significant performance improvement for animations
+- **Memory efficiency**: Reduces allocations by avoiding context recreation  
+- **State persistence**: Widget states are preserved between frames
+- **Scalability**: Enables 60+ FPS applications with complex UIs
+
+# See Also
+- [`@frame`](@ref): Process individual frames with the created context
+- [`@context`](@ref): Traditional single-frame context management
+"""
+function create_context(; 
+    text_width_fn::Union{Function, Nothing} = nothing,
+    text_height_fn::Union{Function, Nothing} = nothing, 
+    setup_fn::Union{Function, Nothing} = nothing
+)
+    # Create and initialize context
+    ctx = Context()
+    init!(ctx)
+    
+    # Set text measurement callbacks
+    ctx.text_width = isnothing(text_width_fn) ? 
+        ((font, str) -> length(str) * 8) : text_width_fn
+    ctx.text_height = isnothing(text_height_fn) ? 
+        (font -> 16) : text_height_fn
+    
+    # Call optional setup function
+    if !isnothing(setup_fn)
+        setup_fn(ctx)
+    end
+    
+    return ctx
 end
 
 """

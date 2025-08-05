@@ -11,12 +11,12 @@ export text, label, button, button_ex, checkbox!, textbox!, textbox_ex!, textbox
 export slider!, slider_ex!, number!, number_ex!, header, header_ex
 export begin_treenode, begin_treenode_ex, end_treenode
 export begin_window, begin_window_ex, end_window
-export open_popup!, begin_popup, end_popup
+export open_popup!, begin_popup, end_popup, get_tab_state
 export begin_panel, begin_panel_ex, end_panel
 export next_command!, push_command!, push_text_command!, bring_to_front!
 export BaseCommand, read_command, TextCommand, RectCommand, CommandIterator, CommandPtr
-export get_string, write_command!, write_string!, IconCommand, JumpCommand
-export push_jump_command!
+export get_string, write_command!, write_string!, IconCommand, JumpCommand, ClipCommand
+export push_jump_command!, TabState, begin_tabbar!, tab!, end_tabbar!
 
 export OPT_ALIGNCENTER, OPT_ALIGNRIGHT, OPT_NOINTERACT, OPT_NOFRAME
 export OPT_NORESIZE, OPT_NOSCROLL, OPT_NOCLOSE, OPT_NOTITLE  
