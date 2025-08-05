@@ -1,5 +1,4 @@
-using GLFW
-using ModernGL
+using SimpleDraw
 
 include("../src/MicroUI.jl")
 using .MicroUI

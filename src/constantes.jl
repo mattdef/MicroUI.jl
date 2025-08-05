@@ -72,7 +72,7 @@ end
 
 - [Release Notes](https://github.com/yourusername/MicroUI.jl/releases)
 """
-const VERSION = "1.2.1"
+const VERSION = "1.2.2"
 
 # ===== BUFFER SIZES =====
 

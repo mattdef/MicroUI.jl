@@ -41,41 +41,45 @@ using MicroUI
 using MicroUI.Macros
 
 # Simple application with automatic state management
-ctx = @context begin
-    @window "My Application" begin
-        @var greeting = "Hello, Julia!"
-        @var counter = 0
-        
-        @text display = greeting
-        @simple_label status = "Click count: $counter"
-        
-        @button increment_btn = "Click me!"
-        @onclick increment_btn begin
-            @var counter = counter + 1
-            @popup "Button clicked!"
-        end
-        
-        @checkbox enable_feature = true
-        @slider volume = 0.5 range(0.0, 1.0)
-        
-        @when enable_feature begin
-            @reactive computed_value = volume * 100
-            @simple_label volume_display = "Volume: $(round(computed_value, digits=1))%"
-        end
+ctx = create_context()
+
+@window "My Application" begin
+    @var greeting = "Hello, Julia!"
+    @var counter = 0
+    
+    @Panel "Title" begin
+        @text display = @state(greeting)
+    end
+
+    @simple_label status = "Click count: $(@state(counter))"
+    
+    @button increment_btn = "Click me!"
+    @onclick increment_btn begin
+        @var counter = @state(counter) + 1
+        @popup "Button clicked!"
     end
     
-    @window "Settings" begin
-        @var theme = "Dark"
-        @button save_settings = "Save Configuration"
-        
-        @onclick save_settings begin
-            @popup "Settings saved!"
-        end
+    @checkbox enable_feature = true
+    @slider volume = 0.5 range(0.0, 1.0)
+    
+    @when enable_feature begin
+        @reactive computed_value = volume * 100
+        @simple_label volume_display = "Volume: $(round(@state(computed_value), digits=1))%"
+    end
+end
+
+@window "Settings" begin
+    @var theme = "Dark"
+    @button save_settings = "Save Configuration"
+    
+    @onclick save_settings begin
+        @popup "Settings saved!"
     end
 end
 
 # Render the commands (backend-specific)
 render_commands(ctx.command_list)
+
 ```
 
 ### Low-level API (Full Control)
@@ -104,9 +108,10 @@ while running
     
     # User interface
     if begin_window(ctx, "My Window", Rect(10, 10, 300, 200)) != 0
+
         layout_row!(ctx, 2, [100, -1], 0)
-        
         label(ctx, "Hello Julia!")
+
         if button(ctx, "Click me") != 0
             println("Button clicked!")
         end
@@ -130,8 +135,8 @@ end
 
 ### Context and Windows
 ```julia
-# Main context - all UI must be inside @context
-ctx = @context begin
+# Main frame - all UI must be inside @frame
+@frame begin
     # Multiple windows supported
     @window "Window 1" begin
         # Window content
@@ -155,8 +160,8 @@ end
     @var age = 25
     
     # Reactive computed values
-    @reactive greeting = "Hello, $name! You are $age years old."
-    @reactive can_vote = age >= 18
+    @reactive greeting = "Hello, $(@state(name))! You are $(@state(age)) years old."
+    @reactive can_vote = @state(age) >= 18
 end
 ```
 
