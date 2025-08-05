@@ -134,6 +134,40 @@ using Test
         @test ctx.text_height(nothing) == 16
     end
 
+    @testset "@context Macro Extented" begin
+        clear_widget_states!()
+        
+        # Test basic context creation
+        @test_nowarn begin
+            # Small font system (6x12 pixels per character)
+            ctx_small = @context (6, 12) begin
+
+            end
+            @test isa(ctx_small, Context)
+        end
+        
+        # Test that context has proper callbacks
+        ctx_small = @context (6, 12) begin end
+        @test !isnothing(ctx_small.text_width)
+        @test !isnothing(ctx_small.text_height)
+        @test ctx_small.text_width(nothing, "test") == 24  # 4 chars * 6
+        @test ctx_small.text_height(nothing) == 12
+
+        # Test with named fields
+        ctx_named = @context char_width=10 line_height=20 begin end
+        @test !isnothing(ctx_named.text_width)
+        @test !isnothing(ctx_named.text_height)
+        @test ctx_named.text_width(nothing, "test") == 40  # 4 chars * 6
+        @test ctx_named.text_height(nothing) == 20
+
+        # Test with Scaled
+        ctx_scaled = @context font_scale=1.5 begin end
+        @test !isnothing(ctx_scaled.text_width)
+        @test !isnothing(ctx_scaled.text_height)
+        @test ctx_scaled.text_width(nothing, "test") == 48  # 4 chars * 6
+        @test ctx_scaled.text_height(nothing) == 24
+    end
+
     @testset "Real Usage in Macro Context" begin
         clear_widget_states!()
         
@@ -881,6 +915,110 @@ end
         
         @test runtime < 0.1  # 100 iterations should take less than 100ms
         println("Runtime for 100 iterations: $(runtime * 1000) ms")
+    end
+
+    @testset "Context per frame Performance" begin
+        
+        println("\\n⚡ Benchmark Context per frame Performance")
+        println("=" ^ 50)
+        
+        num_frames = 100
+        num_widgets_per_frame = 50
+        
+        # Benchmark ancienne approche
+        println("\\n🔸 Benchmark simple approche (@context)")
+        old_time = @elapsed begin
+            for frame in 1:num_frames
+                ctx = @context begin
+                    @window "Benchmark Window" begin
+                        @foreach i in 1:num_widgets_per_frame begin
+                            @var value = i * frame * 0.01
+                            @simple_label "label_$i" = "Widget $i: $(round(@state(value), digits=2))"
+                            @checkbox "check_$i" = (i % 2 == 0)
+                            @textbox "text_$i" = "Widget $i: $(round(@state(value), digits=2))"
+                            @slider "slider_$i" = @state(value) range(0.0, 1.0)
+                            @button "bt_$i" = "Button $i"
+                        end
+                    end
+                end
+            end
+        end
+        
+        clear_widget_states!()
+        
+        # Benchmark nouvelle approche
+        println("🔹 Benchmark approche optimisée (create_context + @frame)")
+        new_time = @elapsed begin
+            ctx = create_context()
+            
+            for frame in 1:num_frames
+                @frame ctx begin
+                    @window "Benchmark Window" begin
+                        @foreach i in 1:num_widgets_per_frame begin
+                            @var value = i * frame * 0.01
+                            @simple_label "label_$i" = "Widget $i: $(round(@state(value), digits=2))"
+                            @checkbox "check_$i" = (i % 2 == 0)
+                            @textbox "text_$i" = "Widget $i: $(round(@state(value), digits=2))"
+                            @slider "slider_$i" = @state(value) range(0.0, 1.0)
+                            @button "bt_$i" = "Button $i"
+                        end
+                    end
+                end
+            end
+        end
+
+        clear_widget_states!()
+
+        println("🔹 Benchmark approche low-code")
+        checkbox_refs = [Ref(i % 2 == 0) for i in 1:num_widgets_per_frame]
+        textbox_refs = [Ref("tb_$i") for i in 1:num_widgets_per_frame]
+        value_refs = [Ref(0.0f0) for _ in 1:num_widgets_per_frame]
+        widget_labels = Matrix{String}(undef, num_frames, num_widgets_per_frame)
+        for frame in 1:num_frames
+            for i in 1:num_widgets_per_frame
+                value = i * frame * 0.01
+                widget_labels[frame, i] = "Widget $i: $(round(value, digits=2))"
+            end
+        end
+        low_time = @elapsed begin
+            ctx = create_context()
+            for frame in 1:num_frames
+                begin_frame(ctx)
+                if begin_window(ctx, "Benchmark Window", Rect(50, 50, 400, 200)) != 0
+                    for i in 1:num_widgets_per_frame
+                        value_refs[i][] = Float32(i * frame * 0.01)
+                        label(ctx, widget_labels[frame, i])
+                        checkbox!(ctx, "check_$i", checkbox_refs[i])
+                        textbox!(ctx, textbox_refs[i], 100)
+                        slider!(ctx, value_refs[i], 0.0f0, 1.0f0)
+                        button(ctx, widget_labels[frame, i])
+                    end
+                    end_window(ctx)
+                end
+                end_frame(ctx)
+            end
+        end
+        
+        # Résultats
+        println("\\n📊 Résultats du Benchmark:")
+        println("Approche simple: $(round(old_time * 1000, digits=2))ms total")
+        println("Approche optimisée: $(round(new_time * 1000, digits=2))ms total")
+        println("Approche low-code: $(round(low_time * 1000, digits=2))ms total")
+        
+        if new_time < old_time
+            speedup = old_time / new_time
+            println("\\n🚀 Amélioration: $(round(speedup, digits=2))x plus rapide!")
+            println("Gain de temps: $(round((old_time - new_time) * 1000, digits=2))ms")
+        else
+            println("\\n⚠️ Nouvelle approche plus lente (possibles optimisations à faire)")
+        end
+        
+        println("\\nFrames par seconde théoriques:")
+        println("  Simple: $(round(num_frames / old_time, digits=1)) FPS")
+        println("  Optimisée: $(round(num_frames / new_time, digits=1)) FPS")
+        println("  Low-code: $(round(num_frames / low_time, digits=1)) FPS")
+        
+        clear_widget_states!()
     end
 
 end

@@ -1,5 +1,5 @@
 # Export all public API functions and types
-export Context, Container, Vec2, Rect, Color, Font
+export Context, Container, Vec2, Rect, Color, Font, create_context
 export init!, begin_frame, end_frame, set_focus!, get_id, push_id!, pop_id!
 export push_clip_rect!, pop_clip_rect!, get_clip_rect, check_clip, expand_rect
 export input_mousemove!, input_mousedown!, input_mouseup!, input_scroll!

@@ -560,6 +560,12 @@ println("Active containers: \$active_containers / \$CONTAINERPOOL_SIZE")
 const CONTAINERPOOL_SIZE = 48
 
 """
+Pool size for tab state management.
+Allows up to 64 concurrent tabbar widgets in the UI.
+"""
+const TABPOOL_SIZE = 64
+
+"""
     TREENODEPOOL_SIZE
 
 Size of the treenode pool for efficient treenode state management.
@@ -1088,3 +1094,143 @@ and checksums, not security. For UI widget IDs, this is perfectly adequate.
 - [Widget ID System](concepts.md#widget-ids): Conceptual overview
 """
 const HASH_INITIAL = 0x811c9dc5
+
+# ===== STYLE CONSTANTS =====
+
+"""
+    DEFAULT_STYLE
+
+Predefined visual style providing a modern dark theme with high contrast elements.
+
+This constant defines the default appearance for all MicroUI widgets, featuring a dark
+background color scheme optimized for readability and reduced eye strain. It serves as
+both the starting point for customization and a complete theme ready for immediate use.
+
+# Style Properties
+
+## Font and Sizing
+- `font`: `nothing` (backend-dependent, must be set by application)
+- `size`: `Vec2(68, 10)` - Default widget dimensions (68×10 pixels)
+- `padding`: `5` pixels - Inner spacing between widget border and content
+- `spacing`: `4` pixels - Gap between adjacent widgets in layouts
+- `indent`: `24` pixels - Indentation for nested elements like tree nodes
+
+## Window and Container Layout
+- `title_height`: `24` pixels - Height of window title bars
+- `scrollbar_size`: `12` pixels - Width of scrollbars
+- `thumb_size`: `8` pixels - Minimum size of scrollbar thumb handles
+
+## Color Palette (Dark Theme)
+
+The color array provides a cohesive dark theme:
+
+    COLOR_TEXT         → Color(230, 230, 230, 255)  # Light gray text
+    COLOR_BORDER       → Color(25, 25, 25, 255)     # Very dark borders
+    COLOR_WINDOWBG     → Color(50, 50, 50, 255)     # Medium dark window background
+    COLOR_TITLEBG      → Color(25, 25, 25, 255)     # Dark title bar background
+    COLOR_TITLETEXT    → Color(240, 240, 240, 255)  # Bright title text
+    COLOR_PANELBG      → Color(0, 0, 0, 0)          # Transparent panel background
+    COLOR_BUTTON       → Color(75, 75, 75, 255)     # Medium gray button
+    COLOR_BUTTONHOVER  → Color(95, 95, 95, 255)     # Lighter gray on hover
+    COLOR_BUTTONFOCUS  → Color(115, 115, 115, 255)  # Even lighter when focused
+    COLOR_BASE         → Color(30, 30, 30, 255)     # Dark input background
+    COLOR_BASEHOVER    → Color(35, 35, 35, 255)     # Slightly lighter on hover
+    COLOR_BASEFOCUS    → Color(40, 40, 40, 255)     # Focused input background
+    COLOR_SCROLLBASE   → Color(43, 43, 43, 255)     # Scrollbar track
+    COLOR_SCROLLTHUMB  → Color(30, 30, 30, 255)     # Scrollbar thumb
+
+# Usage
+
+## Direct Assignment
+    ctx.style = DEFAULT_STYLE
+
+## As Base for Customization
+    # Start with default and modify specific colors
+    custom_style = DEFAULT_STYLE
+    custom_style.colors[Int(COLOR_BUTTON)] = Color(100, 150, 200, 255)  # Blue buttons
+    custom_style.colors[Int(COLOR_WINDOWBG)] = Color(40, 40, 50, 255)   # Bluish background
+    ctx.style = custom_style
+
+## Creating Variants
+    # Light theme variant
+    light_style = Style(
+        DEFAULT_STYLE.font,
+        DEFAULT_STYLE.size,
+        DEFAULT_STYLE.padding,
+        DEFAULT_STYLE.spacing,
+        DEFAULT_STYLE.indent,
+        DEFAULT_STYLE.title_height,
+        DEFAULT_STYLE.scrollbar_size,
+        DEFAULT_STYLE.thumb_size,
+        [
+            Color(20, 20, 20, 255),     # COLOR_TEXT (dark text)
+            Color(200, 200, 200, 255),  # COLOR_BORDER (light borders)
+            Color(240, 240, 240, 255),  # COLOR_WINDOWBG (light background)
+            # ... other light theme colors
+        ]
+    )
+
+# Design Principles
+
+The default style follows these design principles:
+
+1. **High Contrast**: Text and backgrounds have sufficient contrast for readability
+2. **Subtle Hierarchy**: Interactive states (normal/hover/focus) are clearly differentiated
+3. **Eye Comfort**: Dark theme reduces eye strain in low-light environments
+4. **Modern Aesthetic**: Clean, minimal design suitable for technical applications
+5. **Accessibility**: Color choices work well for most users including color vision differences
+
+# Customization Examples
+
+    # Gaming/Entertainment Theme
+    gaming_colors = copy(DEFAULT_STYLE.colors)
+    gaming_colors[Int(COLOR_BUTTON)] = Color(0, 120, 215, 255)      # Blue buttons
+    gaming_colors[Int(COLOR_BUTTONHOVER)] = Color(0, 140, 255, 255) # Bright blue hover
+    gaming_colors[Int(COLOR_TITLEBG)] = Color(0, 80, 160, 255)      # Blue title bars
+    
+    # Professional/Business Theme  
+    professional_colors = copy(DEFAULT_STYLE.colors)
+    professional_colors[Int(COLOR_WINDOWBG)] = Color(45, 45, 48, 255)     # Subtle dark gray
+    professional_colors[Int(COLOR_BUTTON)] = Color(90, 90, 90, 255)       # Neutral buttons
+    professional_colors[Int(COLOR_TITLEBG)] = Color(60, 60, 60, 255)      # Medium gray titles
+    
+    # High Contrast Accessibility Theme
+    accessible_colors = copy(DEFAULT_STYLE.colors)
+    accessible_colors[Int(COLOR_TEXT)] = Color(255, 255, 255, 255)        # Pure white text
+    accessible_colors[Int(COLOR_WINDOWBG)] = Color(0, 0, 0, 255)          # Pure black background
+    accessible_colors[Int(COLOR_BUTTON)] = Color(0, 0, 128, 255)          # Dark blue buttons
+
+# Performance Notes
+
+- The constant is computed at compile time with zero runtime overhead
+- Color array access uses direct indexing for maximum performance
+- Immutable structure enables compiler optimizations
+- Safe to share across multiple contexts
+
+# See Also
+- `Style`: The style structure definition
+- `ColorId`: Enum values for color array indexing  
+- `Context`: Structure that contains the current style
+- `Color`: RGBA color structure used in the palette
+"""
+const DEFAULT_STYLE = Style(
+    nothing,
+    Vec2(68, 10),
+    5, 4, 24, 24, 12, 8,
+    [
+        Color(230, 230, 230, 255), # TEXT
+        Color(25, 25, 25, 255),    # BORDER
+        Color(50, 50, 50, 255),    # WINDOWBG
+        Color(25, 25, 25, 255),    # TITLEBG
+        Color(240, 240, 240, 255), # TITLETEXT
+        Color(0, 0, 0, 0),         # PANELBG
+        Color(75, 75, 75, 255),    # BUTTON
+        Color(95, 95, 95, 255),    # BUTTONHOVER
+        Color(115, 115, 115, 255), # BUTTONFOCUS
+        Color(30, 30, 30, 255),    # BASE
+        Color(35, 35, 35, 255),    # BASEHOVER
+        Color(40, 40, 40, 255),    # BASEFOCUS
+        Color(43, 43, 43, 255),    # SCROLLBASE
+        Color(30, 30, 30, 255)     # SCROLLTHUMB
+    ]
+)

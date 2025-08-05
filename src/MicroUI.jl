@@ -92,10 +92,10 @@ See [`MicroUI.Macros`](@ref) for the complete macro API.
 """
 module MicroUI
 
-include("constantes.jl")
-include("enumerations.jl")
 include("custom_types.jl")
+include("enumerations.jl")
 include("structures.jl")
+include("constantes.jl")
 include("utils_functions.jl")
 include("commands_functions.jl")
 include("frame_functions.jl")
@@ -409,7 +409,7 @@ module Macros
     export @range, @step, @maxlength, @number, @textbox
     export @when, @foreach, @onclick, @popup, @reactive
     export @column, @row, @panel, @close_window, @open_window
-    export @debug_types, @state  # Variable access helper
+    export @debug_types, @state, @frame
     export get_widget_state, clear_widget_states!, parse_assignment
     export WidgetState
 

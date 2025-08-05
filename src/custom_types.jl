@@ -967,3 +967,210 @@ end
 - [Command System Guide](commands.md): Detailed command buffer documentation
 """
 const CommandPtr = Int32
+
+"""
+    Command
+
+Abstract base type for all rendering commands in the MicroUI command system.
+
+Command serves as the parent type for all specific command types used in
+MicroUI's backend-independent rendering system. All concrete command types
+inherit from this abstract type to ensure type safety and enable polymorphic
+handling of different command types.
+
+# Design Rationale
+
+## Command Pattern Benefits
+- **Backend independence**: Commands can be interpreted by any graphics system
+- **Deferred rendering**: UI logic runs separately from actual drawing
+- **Optimization opportunities**: Commands can be batched, culled, or reordered
+- **Debugging and recording**: Commands can be logged, saved, or replayed
+
+## Type Hierarchy
+```julia
+abstract type Command end
+
+# Concrete command types:
+struct RectCommand <: Command
+struct TextCommand <: Command  
+struct IconCommand <: Command
+struct JumpCommand <: Command
+struct ClipCommand <: Command
+```
+
+# Command Buffer Architecture
+
+Commands are stored in a binary buffer for efficient processing:
+
+```julia
+# Command buffer contains a sequence of heterogeneous commands:
+# [RectCommand][TextCommand][ClipCommand][JumpCommand][...]
+
+# Each command starts with BaseCommand header:
+struct BaseCommand
+    type::CommandType  # Identifies the specific command type
+    size::Int32       # Size in bytes for buffer traversal
+end
+```
+
+# Usage in Rendering Pipeline
+
+The command system enables a clean separation between UI logic and rendering:
+
+```julia
+# UI Phase: Generate commands
+begin_frame(ctx)
+draw_rect!(ctx, rect, color)           # → Creates RectCommand
+draw_text!(ctx, font, "Hello", pos, color)  # → Creates TextCommand
+end_frame(ctx)
+
+# Rendering Phase: Process commands  
+iter = CommandIterator(ctx.command_list)
+while true
+    (has_cmd, cmd_type, cmd_idx) = next_command!(iter)
+    if !has_cmd; break; end
+    
+    # Dispatch based on command type
+    if cmd_type == COMMAND_RECT
+        cmd = read_command(ctx.command_list, cmd_idx, RectCommand)
+        backend_draw_rect(cmd.rect, cmd.color)
+    elseif cmd_type == COMMAND_TEXT
+        cmd = read_command(ctx.command_list, cmd_idx, TextCommand)
+        text_str = get_string(ctx.command_list, cmd.str_index)
+        backend_draw_text(cmd.font, text_str, cmd.pos, cmd.color)
+    # ... handle other command types
+    end
+end
+```
+
+# Type Safety and Polymorphism
+
+The Command abstract type provides type safety while allowing flexibility:
+
+```julia
+# Type-safe command processing
+function process_command(cmd::Command)
+    if cmd isa RectCommand
+        process_rect_command(cmd)
+    elseif cmd isa TextCommand
+        process_text_command(cmd)
+    # ... handle other types
+    else
+        error("Unknown command type: \$(typeof(cmd))")
+    end
+end
+
+# Generic command handling
+function get_command_bounds(cmd::Command)
+    if cmd isa RectCommand
+        return cmd.rect
+    elseif cmd isa TextCommand
+        return Rect(cmd.pos.x, cmd.pos.y, text_width(cmd), text_height(cmd))
+    elseif cmd isa IconCommand
+        return cmd.rect
+    else
+        return Rect(0, 0, 0, 0)  # Unknown bounds
+    end
+end
+```
+
+# Command Validation and Debugging
+
+The abstract type enables generic validation and debugging tools:
+
+```julia
+# Generic command validation
+function validate_command(cmd::Command)
+    if cmd isa RectCommand
+        return is_valid_rect(cmd.rect) && is_valid_color(cmd.color)
+    elseif cmd isa TextCommand
+        return cmd.str_index > 0 && cmd.str_length > 0
+    # ... validate other types
+    end
+end
+
+# Command statistics and profiling
+function analyze_commands(commands::Vector{Command})
+    stats = Dict{Type, Int}()
+    for cmd in commands
+        cmd_type = typeof(cmd)
+        stats[cmd_type] = get(stats, cmd_type, 0) + 1
+    end
+    return stats
+end
+```
+
+# Performance Considerations
+
+While Command is an abstract type, the command system is designed for performance:
+
+- **Minimal abstraction overhead**: Commands are stored as binary data, not objects
+- **Type-stable dispatch**: Command type is known at processing time
+- **Cache-friendly access**: Commands are processed sequentially from a buffer
+- **No dynamic dispatch**: Command type is determined from `CommandType` enum
+
+# Integration with Backend Systems
+
+The Command abstract type facilitates integration with various rendering backends:
+
+```julia
+# OpenGL backend
+function render_command_opengl(cmd::Command)
+    if cmd isa RectCommand
+        glColor4ub(cmd.color.r, cmd.color.g, cmd.color.b, cmd.color.a)
+        glRecti(cmd.rect.x, cmd.rect.y, cmd.rect.x + cmd.rect.w, cmd.rect.y + cmd.rect.h)
+    # ... other OpenGL rendering
+    end
+end
+
+# Software rendering backend
+function render_command_software(cmd::Command, framebuffer::Matrix{Color})
+    if cmd isa RectCommand
+        fill_rect!(framebuffer, cmd.rect, cmd.color)
+    # ... other software rendering
+    end
+end
+
+# Web/Canvas backend  
+function render_command_web(cmd::Command, canvas_context)
+    if cmd isa RectCommand
+        canvas_context.fillStyle = color_to_css(cmd.color)
+        canvas_context.fillRect(cmd.rect.x, cmd.rect.y, cmd.rect.w, cmd.rect.h)
+    # ... other web rendering
+    end
+end
+```
+
+# Future Extensibility
+
+The Command abstract type makes it easy to add new command types:
+
+```julia
+# Custom command for advanced graphics
+struct GradientCommand <: Command
+    base::BaseCommand
+    rect::Rect
+    start_color::Color
+    end_color::Color
+    direction::Vec2
+end
+
+# Custom command for vector graphics
+struct BezierCommand <: Command
+    base::BaseCommand
+    control_points::Vector{Vec2}
+    color::Color
+    thickness::Real
+end
+```
+
+# See Also
+
+- [`BaseCommand`](@ref): Common header for all commands
+- [`RectCommand`](@ref), [`TextCommand`](@ref): Concrete command types
+- [`CommandType`](@ref): Enumeration of command types
+- [`CommandList`](@ref): Storage for command sequences
+- [`CommandIterator`](@ref): Tool for processing command sequences
+- [Command System Guide](commands.md): Detailed command system documentation
+"""
+abstract type Command end

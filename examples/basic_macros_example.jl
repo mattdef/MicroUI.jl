@@ -158,55 +158,56 @@ function demo_application()
     renderer = SimpleTextRenderer(70, 25)
     
     # 🎯 NEW APPROACH: Create context once
-    ctx = setup_context()
+    ctx = @context begin
     
     # Simulate multiple frames
-    for frame in 1:3
-        println("\\n📺 Frame $frame:")
-        println("-" ^ 30)
-        
-        # 🎯 Use @frame for each frame with existing context
-        @frame begin
-            @window "Simple Demo" begin
-                # Variables managed by macro system
-                @var greeting = "Hello, Julia!"
-                @var counter = frame * 2  # Simulate increasing counter
-                @var enable_feature = frame > 1  # Enable after frame 1
-                @var volume = 0.3 + (frame * 0.2)  # Simulate changing volume
+        for frame in 1:3
+            println("\\n📺 Frame $frame:")
+            println("-" ^ 30)
+            
+            # 🎯 Use @frame for each frame with existing context
+            @frame begin
+                @window "Simple Demo" begin
+                    # Variables managed by macro system
+                    @var greeting = "Hello, Julia!"
+                    @var counter = frame * 2  # Simulate increasing counter
+                    @var enable_feature = frame > 1  # Enable after frame 1
+                    @var volume = 0.3 + (frame * 0.2)  # Simulate changing volume
+                    
+                    # Display content using macros
+                    @text greeting_display = greeting
+                    @simple_label counter_display = "Click count: $counter"
+                    
+                    # Interactive elements
+                    @button click_btn = "Click me!"
+                    
+                    # Checkbox
+                    @checkbox feature_checkbox = enable_feature
+                    
+                    # Slider  
+                    @slider volume_slider = volume range(0.0, 1.0)
+                    
+                    # Conditional content using @when
+                    @when enable_feature begin
+                        @reactive volume_percent = round(volume * 100, digits=1)
+                        @simple_label volume_display = "Volume: $(volume_percent)%"
+                    end
+                end
                 
-                # Display content using macros
-                @text greeting_display = greeting
-                @simple_label counter_display = "Click count: $counter"
-                
-                # Interactive elements
-                @button click_btn = "Click me!"
-                
-                # Checkbox
-                @checkbox feature_checkbox = enable_feature
-                
-                # Slider  
-                @slider volume_slider = volume range(0.0, 1.0)
-                
-                # Conditional content using @when
-                @when enable_feature begin
-                    @reactive volume_percent = round(volume * 100, digits=1)
-                    @simple_label volume_display = "Volume: $(volume_percent)%"
+                # Second window using same context
+                @window "Settings" begin
+                    @simple_label theme_label = "Theme: Dark"
+                    @button save_btn = "Save Configuration"
                 end
             end
             
-            # Second window using same context
-            @window "Settings" begin
-                @simple_label theme_label = "Theme: Dark"
-                @button save_btn = "Save Configuration"
-            end
+            # ✅ ctx is available here for rendering!
+            render_context!(renderer, ctx)
+            display!(renderer)
+            
+            # Small delay for demo effect
+            sleep(1.0)
         end
-        
-        # ✅ ctx is available here for rendering!
-        render_context!(renderer, ctx)
-        display!(renderer)
-        
-        # Small delay for demo effect
-        sleep(1.0)
     end
     
     println("\\n✅ New macro approach demo completed!")
